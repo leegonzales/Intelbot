@@ -1,0 +1,231 @@
+"""CLI main entry point."""
+
+import click
+from pathlib import Path
+import sys
+
+from research_agent.core.config import Config
+from research_agent.core.orchestrator import ResearchOrchestrator
+from research_agent.storage.state import StateManager
+
+
+@click.group()
+@click.version_option(version="1.0.0")
+def cli():
+    """Research Agent - Automated AI research tracking."""
+    pass
+
+
+@cli.command()
+@click.option('--dry-run', is_flag=True, help='Run without writing outputs')
+@click.option('--verbose', is_flag=True, help='Verbose logging')
+@click.option('--config', type=click.Path(), help='Custom config file')
+def run(dry_run, verbose, config):
+    """Execute research cycle."""
+    try:
+        # Load config
+        if config:
+            config_obj = Config.load(Path(config))
+        else:
+            config_obj = Config.load_default()
+
+        # Override dev settings
+        if verbose:
+            config_obj.dev['verbose'] = True
+
+        if dry_run:
+            config_obj.dev['dry_run'] = True
+            click.echo("Running in DRY RUN mode (no outputs will be written)")
+
+        # Run orchestrator
+        orchestrator = ResearchOrchestrator(config_obj)
+        result = orchestrator.run(dry_run=dry_run)
+
+        # Print result
+        click.echo()
+        click.echo("=" * 60)
+        click.secho(f"Research run completed: {result.status}",
+                    fg='green' if result.status == 'success' else 'yellow')
+        click.echo("=" * 60)
+        click.echo(f"  Items found:    {result.items_found}")
+        click.echo(f"  New items:      {result.items_new}")
+        click.echo(f"  Included:       {result.items_included}")
+        click.echo(f"  Runtime:        {result.runtime_seconds:.2f}s")
+
+        if result.output_path:
+            click.echo(f"  Output:         {result.output_path}")
+
+        if result.error_log:
+            click.secho(f"  Errors:         {result.error_log}", fg='red', err=True)
+
+        # Exit with appropriate code
+        sys.exit(0 if result.status == 'success' else 1)
+
+    except Exception as e:
+        click.secho(f"Fatal error: {e}", fg='red', err=True)
+        if verbose:
+            import traceback
+            traceback.print_exc()
+        sys.exit(1)
+
+
+@cli.group()
+def config():
+    """Manage configuration and prompts."""
+    pass
+
+
+@config.command()
+@click.argument('component', type=click.Choice(['system', 'sources', 'synthesis']))
+def edit(component):
+    """Edit prompt templates."""
+    import os
+
+    config_obj = Config.load_default()
+    prompt_path = Path(config_obj.paths.prompts_dir).expanduser() / f"{component}.md"
+
+    if not prompt_path.exists():
+        click.secho(f"Prompt file not found: {prompt_path}", fg='red', err=True)
+        click.echo(f"Create it first with: mkdir -p {prompt_path.parent}")
+        sys.exit(1)
+
+    # Open in $EDITOR
+    editor = os.environ.get('EDITOR', 'vim')
+    os.system(f"{editor} {prompt_path}")
+
+
+@config.command()
+def show():
+    """Show current configuration."""
+    config_obj = Config.load_default()
+    click.echo(config_obj.to_yaml())
+
+
+@config.command()
+def path():
+    """Show config file path."""
+    config_path = Path.home() / '.research-agent' / 'config.yaml'
+    click.echo(str(config_path))
+
+
+@cli.group()
+def schedule():
+    """Manage scheduled execution."""
+    pass
+
+
+@schedule.command()
+def install():
+    """Install launchd job."""
+    try:
+        from research_agent.scheduler.launchd import install_launchd
+        install_launchd()
+        click.secho("✓ Scheduled job installed", fg='green')
+    except Exception as e:
+        click.secho(f"Error installing schedule: {e}", fg='red', err=True)
+        sys.exit(1)
+
+
+@schedule.command()
+def uninstall():
+    """Uninstall launchd job."""
+    try:
+        from research_agent.scheduler.launchd import uninstall_launchd
+        uninstall_launchd()
+        click.secho("✓ Scheduled job removed", fg='green')
+    except Exception as e:
+        click.secho(f"Error uninstalling schedule: {e}", fg='red', err=True)
+        sys.exit(1)
+
+
+@schedule.command()
+def status():
+    """Check schedule status."""
+    try:
+        from research_agent.scheduler.launchd import check_status
+        status_str = check_status()
+        if status_str == "loaded":
+            click.secho(f"Status: {status_str}", fg='green')
+        else:
+            click.secho(f"Status: {status_str}", fg='yellow')
+    except Exception as e:
+        click.secho(f"Error checking status: {e}", fg='red', err=True)
+        sys.exit(1)
+
+
+@cli.group()
+def history():
+    """View research history."""
+    pass
+
+
+@history.command()
+@click.option('--last', type=int, default=10, help='Last N runs')
+def runs(last):
+    """Show recent research runs."""
+    try:
+        config_obj = Config.load_default()
+        data_dir = Path(config_obj.paths.data_dir).expanduser()
+        state = StateManager(data_dir / "state.db")
+
+        recent = state.get_recent_runs(limit=last)
+
+        if not recent:
+            click.echo("No runs found")
+            return
+
+        click.echo()
+        click.echo("Recent research runs:")
+        click.echo("=" * 80)
+
+        for run in recent:
+            status_color = 'green' if run['status'] == 'success' else 'red'
+            click.secho(f"{run['timestamp']} - {run['status']}", fg=status_color)
+            click.echo(f"  Items: {run['items_included']}/{run['items_new']}/{run['items_found']} (included/new/found)")
+            if run['output_path']:
+                click.echo(f"  Output: {run['output_path']}")
+            click.echo()
+
+    except Exception as e:
+        click.secho(f"Error fetching history: {e}", fg='red', err=True)
+        sys.exit(1)
+
+
+@history.command()
+@click.argument('query')
+@click.option('--limit', type=int, default=20, help='Max results')
+def search(query, limit):
+    """Search historical items."""
+    try:
+        config_obj = Config.load_default()
+        data_dir = Path(config_obj.paths.data_dir).expanduser()
+        state = StateManager(data_dir / "state.db")
+
+        results = state.search_history(query, limit=limit)
+
+        if not results:
+            click.echo(f"No results found for: {query}")
+            return
+
+        click.echo()
+        click.echo(f"Search results for: {query}")
+        click.echo("=" * 80)
+
+        for item in results:
+            click.secho(f"\n{item['title']}", fg='blue', bold=True)
+            click.echo(f"  URL: {item['url']}")
+            click.echo(f"  Source: {item['source']}")
+            click.echo(f"  Date: {item['first_seen']}")
+            if item.get('snippet_html'):
+                # Strip HTML tags for terminal display
+                from research_agent.utils.text import clean_html
+                snippet = clean_html(item['snippet_html'])
+                click.echo(f"  {snippet}")
+
+    except Exception as e:
+        click.secho(f"Error searching: {e}", fg='red', err=True)
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    cli()

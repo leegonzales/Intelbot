@@ -1,0 +1,183 @@
+# Research Agent Configuration Example
+version: "1.0"
+
+# ============================================
+# PATHS
+# ============================================
+paths:
+  # Where to store state database and logs
+  data_dir: "~/.research-agent"
+
+  # Output location (Obsidian vault)
+  output_dir: "~/Documents/Obsidian/Research/Digests"
+
+  # Prompt templates
+  prompts_dir: "~/.research-agent/prompts"
+
+  # Log files
+  logs_dir: "~/.research-agent/logs"
+
+# ============================================
+# SCHEDULING
+# ============================================
+schedule:
+  # Daily at 7:00 AM
+  interval: "0 7 * * *"
+
+  # Timezone
+  timezone: "America/Denver"
+
+  # Retry on failure
+  retry:
+    enabled: true
+    max_attempts: 3
+    backoff_minutes: [5, 15, 30]
+
+# ============================================
+# MODEL & API
+# ============================================
+model:
+  # Claude model to use
+  name: "claude-sonnet-4-20250514"
+
+  # Fallback if primary fails
+  fallback: "claude-sonnet-4-20250514"
+
+  # Max tokens for research cycle
+  max_tokens: 16000
+
+  # Temperature for synthesis
+  temperature: 0.3
+
+  # API configuration
+  api:
+    timeout_seconds: 300
+    max_retries: 3
+
+# ============================================
+# RESEARCH PARAMETERS
+# ============================================
+research:
+  # How many items to target per digest
+  target_items: 10
+
+  # Minimum items before publishing digest
+  min_items: 3
+
+  # Maximum items (cap even if more found)
+  max_items: 15
+
+  # Lookback window (hours since last run)
+  lookback_hours: 24
+
+  # Deduplication strategy
+  dedup:
+    exact_url: true
+    title_similarity: 0.85
+    content_hash: true
+    fts_enabled: true
+    fts_min_score: 0.7
+
+# ============================================
+# OUTPUT FORMAT
+# ============================================
+output:
+  # File naming
+  filename_pattern: "{year}-{month:02d}-{day:02d}-research-digest.md"
+
+  # Directory structure: "flat", "year", or "year/month"
+  dir_structure: "year/month"
+
+  # Metadata to include
+  metadata:
+    frontmatter: true
+    tags: ["research", "ai", "daily-digest"]
+    source_attribution: true
+    runtime_stats: true
+
+  # Obsidian-specific
+  obsidian:
+    use_wikilinks: true
+    tag_format: "#ai/research"
+
+# ============================================
+# SOURCES
+# ============================================
+sources:
+  # arXiv configuration
+  arxiv:
+    enabled: true
+    categories:
+      - "cs.AI"
+      - "cs.LG"
+      - "cs.CL"
+      - "cs.HC"
+    max_results: 20
+
+  # Hacker News
+  hackernews:
+    enabled: true
+    endpoints:
+      - "topstories"
+      - "beststories"
+    max_items: 30
+    filter_keywords:
+      - "AI"
+      - "LLM"
+      - "agent"
+      - "GPT"
+      - "Claude"
+      - "machine learning"
+
+  # RSS feeds
+  rss:
+    enabled: true
+    feeds:
+      - url: "https://www.anthropic.com/news/rss"
+        name: "Anthropic News"
+      - url: "https://openai.com/blog/rss"
+        name: "OpenAI Blog"
+
+  # Custom blogs (web scraping)
+  blogs:
+    enabled: false
+    urls: []
+
+# ============================================
+# PREFERENCE LEARNING (Phase 2)
+# ============================================
+learning:
+  enabled: false
+
+  # How to track engagement
+  tracking:
+    file_access: true
+    obsidian_api: false
+
+  # Adaptation parameters
+  adaptation:
+    min_samples: 20
+    learning_rate: 0.1
+    rerank_sources: true
+
+# ============================================
+# NOTIFICATIONS
+# ============================================
+notifications:
+  enabled: false
+
+  on_success:
+    enabled: false
+    method: "none"
+
+  on_failure:
+    enabled: true
+    method: "log"
+
+# ============================================
+# DEVELOPMENT
+# ============================================
+dev:
+  dry_run: false
+  verbose: false
+  debug: false

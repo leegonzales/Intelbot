@@ -1,24 +1,24 @@
 # Issue Tracker - Complete Index
 
-**Total Issues**: 51
-**Open**: 51
-**Closed**: 0
+**Total Issues**: 61 (51 original + 10 new)
+**Open**: 56
+**Closed**: 5
 
 Last Updated: 2024-11-15
 
 ---
 
-## Critical Issues (P1) - 5 issues
+## Critical Issues (P1) - 5 issues ✅ ALL FIXED
 
-| # | Title | Status | Assignee | Est | Labels |
-|---|-------|--------|----------|-----|--------|
-| [1](critical/01-logging.md) | Implement logging system | 🔴 Open | - | 3-4h | critical, infrastructure |
-| [2](critical/02-retry.md) | Add retry logic | 🔴 Open | - | 2-3h | critical, networking |
-| [3](critical/03-api-keys.md) | Validate API keys | 🔴 Open | - | 1h | critical, config |
-| [4](critical/04-fts5.md) | Check SQLite FTS5 | 🔴 Open | - | 1h | critical, database |
-| [5](critical/05-constraints.md) | Fix DB constraints | 🔴 Open | - | 1h | critical, database |
+| # | Title | Status | Assignee | Actual | Labels |
+|---|-------|--------|----------|--------|--------|
+| [1](critical/01-logging.md) | Implement logging system | ✅ Closed | Claude | 2h | critical, infrastructure |
+| [2](critical/02-retry.md) | Add retry logic | ✅ Closed | Claude | 1h | critical, networking |
+| [3](critical/03-api-keys.md) | Validate API keys | ✅ Closed | Claude | 0.5h | critical, config |
+| [4](critical/04-fts5.md) | Check SQLite FTS5 | ✅ Closed | Claude | 0.5h | critical, database |
+| [5](critical/05-constraints.md) | Fix DB constraints | ✅ Closed | Claude | 1.5h | critical, database |
 
-**Total Estimate**: 8-10 hours
+**Total Actual Time**: 5.5 hours (vs 8-10h estimated)
 
 ---
 
@@ -117,6 +117,36 @@ Last Updated: 2024-11-15
 | 47 | Add prompt cache invalidation | 🔵 Open | Performance |
 
 **Total Estimate**: 40-50 hours
+
+---
+
+## New Issues Discovered (Sprint 001) - 10 issues
+
+Issues discovered during critical bug fixes that should be addressed:
+
+### Code Quality (P3)
+| # | Title | Status | Est | Category |
+|---|-------|--------|-----|----------|
+| 52 | Add type hints to logger.py and retry.py | 🟠 Open | 1h | Code Quality |
+| 53 | Create __init__.py for utils package | 🟠 Open | 15m | Code Quality |
+| 54 | Add comprehensive tests for logging | 🟠 Open | 3h | Testing |
+| 55 | Add comprehensive tests for retry | 🟠 Open | 2h | Testing |
+
+### Error Handling (P3)
+| # | Title | Status | Est | Category |
+|---|-------|--------|-----|----------|
+| 56 | Validate log directory permissions | 🟠 Open | 30m | Error Handling |
+| 57 | Log retry success not just failures | 🟠 Open | 15m | Enhancement |
+
+### UX & Config (P3-P4)
+| # | Title | Status | Est | Category |
+|---|-------|--------|-----|----------|
+| 58 | Auto-create .env file in install script | 🟠 Open | 30m | UX |
+| 59 | Add example config with all options | 🟠 Open | 1h | Documentation |
+| 60 | Add CLI command to test configuration | 🟠 Open | 2h | CLI |
+| 61 | Add health check CLI command | 🟠 Open | 2h | CLI |
+
+**Total Estimate**: 12.5 hours
 
 ---
 

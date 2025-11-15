@@ -39,6 +39,23 @@ class StateManager:
 
     def _init_db(self):
         """Initialize database schema."""
+        # Check FTS5 support (Issue #4 - Critical Fix)
+        with self._get_conn() as conn:
+            cursor = conn.execute("PRAGMA compile_options")
+            options = [row[0] for row in cursor.fetchall()]
+
+            has_fts5 = any('FTS5' in opt for opt in options)
+
+            if not has_fts5:
+                raise RuntimeError(
+                    "SQLite does not have FTS5 support.\n\n"
+                    "On macOS: brew install sqlite\n"
+                    "On Ubuntu: sudo apt-get install sqlite3\n"
+                    "On Fedora: sudo dnf install sqlite\n\n"
+                    "Then reinstall Python to use system SQLite:\n"
+                    "pyenv install --force 3.10.x"
+                )
+
         from research_agent.storage.migrations import run_migrations
         run_migrations(self.db_path)
 
@@ -148,14 +165,17 @@ class StateManager:
 
     def add_item(self, item: Dict) -> int:
         """
-        Add new item to database.
+        Add new item to database or return existing ID.
+
+        Issue #5 Fix: Use INSERT OR IGNORE to handle duplicates gracefully.
 
         Returns:
-            Item ID
+            Item ID (new or existing)
         """
         with self._get_conn() as conn:
+            # Try to insert (will be ignored if URL already exists)
             cursor = conn.execute("""
-                INSERT INTO seen_items (
+                INSERT OR IGNORE INTO seen_items (
                     url, content_hash, title, snippet, content,
                     source, source_metadata, published_date,
                     author, category, tags
@@ -174,7 +194,13 @@ class StateManager:
                 ','.join(item.get('tags', []))
             ))
 
-            return cursor.lastrowid
+            # Get ID (either newly inserted or existing)
+            if cursor.lastrowid:
+                return cursor.lastrowid
+            else:
+                # Item already existed, get its ID
+                cursor = conn.execute("SELECT id FROM seen_items WHERE url = ?", (item['url'],))
+                return cursor.fetchone()[0]
 
     def filter_new(self, items: List[Dict]) -> List[Dict]:
         """
@@ -235,13 +261,19 @@ class StateManager:
 
             run_id = cursor.lastrowid
 
-            # Add new items to seen_items
+            # Issue #5 Fix: Build URL-to-rank mapping for correct item linking
+            url_to_rank = {
+                item['url']: idx
+                for idx, item in enumerate(items_included)
+            }
+
+            # Add new items to seen_items and link to run
             for item in items_new:
                 item_id = self.add_item(item)
 
-                # Link to run if included in digest
-                if item in items_included:
-                    rank = items_included.index(item)
+                # Link to run if included in digest (compare by URL, not object reference)
+                if item['url'] in url_to_rank:
+                    rank = url_to_rank[item['url']]
                     conn.execute("""
                         INSERT INTO run_items (run_id, item_id, rank)
                         VALUES (?, ?, ?)

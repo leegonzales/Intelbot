@@ -6,11 +6,18 @@ from datetime import datetime, timedelta
 
 from research_agent.sources.base import ResearchSource
 from research_agent.utils.text import extract_snippet
+from research_agent.utils.retry import retry
+from research_agent.utils.logger import get_logger
 
 
 class ArxivSource(ResearchSource):
     """Collect papers from arXiv."""
 
+    def __init__(self, config):
+        super().__init__(config)
+        self.logger = get_logger("sources.arxiv")
+
+    @retry(max_attempts=3, backoff_base=2.0, exceptions=(Exception,))
     def fetch(self) -> List[Dict]:
         """
         Fetch recent papers from arXiv.
@@ -59,7 +66,7 @@ class ArxivSource(ResearchSource):
                     items.append(item)
 
             except Exception as e:
-                print(f"Error fetching arXiv category {category}: {e}")
+                self.logger.error(f"Error fetching arXiv category {category}: {e}")
                 continue
 
         return items

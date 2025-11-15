@@ -7,6 +7,7 @@ import sys
 from research_agent.core.config import Config
 from research_agent.core.orchestrator import ResearchOrchestrator
 from research_agent.storage.state import StateManager
+from research_agent.utils.logger import setup_logger
 
 
 @click.group()
@@ -29,6 +30,14 @@ def run(dry_run, verbose, config):
         else:
             config_obj = Config.load_default()
 
+        # Validate API key (Issue #3 - Critical Fix)
+        import os
+        if not os.getenv('ANTHROPIC_API_KEY'):
+            click.secho("Error: ANTHROPIC_API_KEY not found in environment", fg='red', err=True)
+            click.echo("Please add your API key to ~/.research-agent/.env")
+            click.echo("Example: ANTHROPIC_API_KEY=sk-ant-your-key-here")
+            sys.exit(1)
+
         # Override dev settings
         if verbose:
             config_obj.dev['verbose'] = True
@@ -36,6 +45,14 @@ def run(dry_run, verbose, config):
         if dry_run:
             config_obj.dev['dry_run'] = True
             click.echo("Running in DRY RUN mode (no outputs will be written)")
+
+        # Initialize logging
+        log_dir = Path(config_obj.paths.logs_dir).expanduser()
+        setup_logger(
+            name="research_agent",
+            log_dir=log_dir,
+            verbose=verbose
+        )
 
         # Run orchestrator
         orchestrator = ResearchOrchestrator(config_obj)

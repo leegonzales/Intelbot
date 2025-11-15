@@ -12,6 +12,7 @@ from research_agent.agents.source_agent import SourceAgent
 from research_agent.agents.synthesis_agent import SynthesisAgent
 from research_agent.output.digest_writer import DigestWriter
 from research_agent.utils.scoring import RelevanceScorer
+from research_agent.utils.logger import get_logger
 
 
 @dataclass
@@ -42,6 +43,7 @@ class ResearchOrchestrator:
 
     def __init__(self, config: Config):
         self.config = config
+        self.logger = get_logger("orchestrator")
 
         # Expand paths
         data_dir = Path(config.paths.data_dir).expanduser()
@@ -67,16 +69,16 @@ class ResearchOrchestrator:
         start_time = datetime.now()
 
         try:
-            print("=" * 60)
-            print("Starting research cycle...")
-            print("=" * 60)
+            self.logger.info("=" * 60)
+            self.logger.info("Starting research cycle...")
+            self.logger.info("=" * 60)
 
             # 1. Collect items from all sources
-            print("\n[1/6] Collecting items from sources...")
+            self.logger.info("[1/6] Collecting items from sources...")
             items = self.source_agent.collect_all()
 
             if not items:
-                print("Warning: No items collected from any source")
+                self.logger.warning("No items collected from any source")
                 return ResearchResult(
                     timestamp=start_time,
                     status='partial',
@@ -89,13 +91,13 @@ class ResearchOrchestrator:
                 )
 
             # 2. Deduplicate against state
-            print(f"\n[2/6] Deduplicating {len(items)} items...")
+            self.logger.info(f"[2/6] Deduplicating {len(items)} items...")
             new_items = self.state.filter_new(items)
-            print(f"Found {len(new_items)} new items")
+            self.logger.info(f"Found {len(new_items)} new items")
 
             if len(new_items) < self.config.research.get('min_items', 3):
-                print(f"Warning: Only {len(new_items)} new items (minimum: {self.config.research.get('min_items', 3)})")
-                print("Skipping digest generation")
+                self.logger.warning(f"Only {len(new_items)} new items (minimum: {self.config.research.get('min_items', 3)})")
+                self.logger.warning("Skipping digest generation")
                 return ResearchResult(
                     timestamp=start_time,
                     status='partial',
@@ -108,26 +110,26 @@ class ResearchOrchestrator:
                 )
 
             # 3. Score and rank
-            print(f"\n[3/6] Scoring and ranking items...")
+            self.logger.info(f"[3/6] Scoring and ranking items...")
             ranked_items = self._score_and_rank(new_items)
 
             # 4. Select top N for digest
             target_items = self.config.research.get('target_items', 10)
             max_items = self.config.research.get('max_items', 15)
             selected = ranked_items[:min(target_items, max_items)]
-            print(f"Selected {len(selected)} items for digest")
+            self.logger.info(f"Selected {len(selected)} items for digest")
 
             # 5. Synthesize digest using Claude
-            print(f"\n[4/6] Synthesizing digest...")
+            self.logger.info(f"[4/6] Synthesizing digest...")
             digest_content = self.synthesis_agent.synthesize(selected)
 
             # 6. Write output
             output_path = None
             if not dry_run:
-                print(f"\n[5/6] Writing digest...")
+                self.logger.info(f"[5/6] Writing digest...")
                 output_path = self.digest_writer.write(digest_content)
 
-                print(f"\n[6/6] Recording run in database...")
+                self.logger.info(f"[6/6] Recording run in database...")
                 runtime = (datetime.now() - start_time).total_seconds()
                 self.state.record_run(
                     items,
@@ -137,14 +139,14 @@ class ResearchOrchestrator:
                     runtime
                 )
             else:
-                print("\n[DRY RUN] Skipping file write and database update")
+                self.logger.info("[DRY RUN] Skipping file write and database update")
 
             # 7. Return result
             runtime = (datetime.now() - start_time).total_seconds()
 
-            print("\n" + "=" * 60)
-            print("Research cycle completed successfully!")
-            print("=" * 60)
+            self.logger.info("=" * 60)
+            self.logger.info("Research cycle completed successfully!")
+            self.logger.info("=" * 60)
 
             return ResearchResult(
                 timestamp=start_time,
@@ -159,10 +161,8 @@ class ResearchOrchestrator:
         except Exception as e:
             runtime = (datetime.now() - start_time).total_seconds()
 
-            print(f"\nError during research cycle: {e}")
-
-            import traceback
-            traceback.print_exc()
+            self.logger.error(f"Error during research cycle: {e}")
+            self.logger.debug("Full traceback:", exc_info=True)
 
             return ResearchResult(
                 timestamp=start_time,

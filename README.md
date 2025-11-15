@@ -3,7 +3,11 @@
 Autonomous AI research tracking with preference learning.
 
 **Version**: 1.0.0
-**Status**: Production Ready
+**Status**: 🟡 Testing Phase (Critical fixes complete)
+
+> **For Developers**: See [CLAUDE.md](CLAUDE.md) for complete project context, architecture, and development history.
+>
+> **Project State**: [docs/project-state/README.md](docs/project-state/README.md) | **Issues**: [docs/project-state/issues/INDEX.md](docs/project-state/issues/INDEX.md)
 
 ## Overview
 
@@ -228,18 +232,32 @@ research-agent config path
 
 ## Development
 
+### Current Development Status
+
+**Sprint 001**: ✅ Complete - All critical bugs fixed ([details](docs/project-state/sprints/SPRINT_001.md))
+**Sprint 002**: 🔄 In Progress - Comprehensive testing ([plan](docs/project-state/sprints/SPRINT_002_PLAN.md))
+
 ### Running Tests
 
 ```bash
 # Install dev dependencies
-pip install -e ".[dev]"
+poetry install
 
-# Run tests
-pytest
+# Run tests (Sprint 002 in progress)
+poetry run pytest
 
 # Run with coverage
-pytest --cov=research_agent
+poetry run pytest --cov=research_agent --cov-report=html
+
+# Run specific test suites
+poetry run pytest tests/unit/              # Unit tests only
+poetry run pytest tests/integration/       # Integration tests only
+poetry run pytest -v                       # Verbose output
 ```
+
+**Current Coverage**: ~10% (target: >80% by end of Sprint 002)
+
+**Test Plan**: See [Sprint 002 Plan](docs/project-state/sprints/SPRINT_002_PLAN.md) for comprehensive testing strategy
 
 ### Code Quality
 

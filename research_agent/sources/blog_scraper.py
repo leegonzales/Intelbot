@@ -7,11 +7,18 @@ from datetime import datetime
 
 from research_agent.sources.base import ResearchSource
 from research_agent.utils.text import extract_snippet, clean_html
+from research_agent.utils.retry import retry
+from research_agent.utils.logger import get_logger
 
 
 class BlogScraperSource(ResearchSource):
     """Scrape articles from blog homepages."""
 
+    def __init__(self, config):
+        super().__init__(config)
+        self.logger = get_logger("sources.blog_scraper")
+
+    @retry(max_attempts=3, backoff_base=2.0, exceptions=(Exception,))
     def fetch(self) -> List[Dict]:
         """
         Fetch articles from blog URLs.
@@ -40,7 +47,7 @@ class BlogScraperSource(ResearchSource):
                 items.extend(articles)
 
             except Exception as e:
-                print(f"Error scraping blog {url}: {e}")
+                self.logger.error(f"Error scraping blog {url}: {e}")
                 continue
 
         return items
@@ -110,7 +117,7 @@ class BlogScraperSource(ResearchSource):
                     articles.append(article)
 
                 except Exception as e:
-                    print(f"Error parsing article from {base_url}: {e}")
+                    self.logger.error(f"Error parsing article from {base_url}: {e}")
                     continue
 
             if articles:  # If we found articles with this selector, stop trying others

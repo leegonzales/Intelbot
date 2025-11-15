@@ -5,6 +5,8 @@ from typing import List, Dict
 from datetime import datetime
 
 from research_agent.sources.base import ResearchSource
+from research_agent.utils.retry import retry
+from research_agent.utils.logger import get_logger
 
 
 class HackerNewsSource(ResearchSource):
@@ -12,6 +14,11 @@ class HackerNewsSource(ResearchSource):
 
     BASE_URL = "https://hacker-news.firebaseio.com/v0"
 
+    def __init__(self, config):
+        super().__init__(config)
+        self.logger = get_logger("sources.hackernews")
+
+    @retry(max_attempts=3, backoff_base=2.0, exceptions=(Exception,))
     def fetch(self) -> List[Dict]:
         """
         Fetch items from Hacker News.
@@ -70,11 +77,11 @@ class HackerNewsSource(ResearchSource):
                         items.append(item)
 
                     except Exception as e:
-                        print(f"Error fetching HN story {story_id}: {e}")
+                        self.logger.error(f"Error fetching HN story {story_id}: {e}")
                         continue
 
             except Exception as e:
-                print(f"Error fetching HN {endpoint}: {e}")
+                self.logger.error(f"Error fetching HN {endpoint}: {e}")
                 continue
 
         return items

@@ -6,11 +6,18 @@ from datetime import datetime, timedelta
 
 from research_agent.sources.base import ResearchSource
 from research_agent.utils.text import extract_snippet, clean_html
+from research_agent.utils.retry import retry
+from research_agent.utils.logger import get_logger
 
 
 class RSSSource(ResearchSource):
     """Collect items from RSS feeds."""
 
+    def __init__(self, config):
+        super().__init__(config)
+        self.logger = get_logger("sources.rss")
+
+    @retry(max_attempts=3, backoff_base=2.0, exceptions=(Exception,))
     def fetch(self) -> List[Dict]:
         """
         Fetch items from RSS feeds.
@@ -57,7 +64,7 @@ class RSSSource(ResearchSource):
                     items.append(item)
 
             except Exception as e:
-                print(f"Error fetching RSS feed {feed_config.get('url')}: {e}")
+                self.logger.error(f"Error fetching RSS feed {feed_config.get('url')}: {e}")
                 continue
 
         return items

@@ -3,6 +3,8 @@
 from typing import List, Dict
 import anthropic
 
+from research_agent.utils.logger import get_logger
+
 
 class SynthesisAgent:
     """
@@ -12,6 +14,7 @@ class SynthesisAgent:
     def __init__(self, config, prompt_manager):
         self.config = config
         self.prompts = prompt_manager
+        self.logger = get_logger("agents.synthesis")
 
         # Initialize Anthropic client
         self.client = anthropic.Anthropic()
@@ -64,7 +67,7 @@ Begin synthesis now.
 """
 
         # Run Claude synthesis
-        print("Synthesizing digest with Claude...")
+        self.logger.info("Synthesizing digest with Claude...")
 
         try:
             message = self.client.messages.create(
@@ -81,7 +84,7 @@ Begin synthesis now.
             return digest_content
 
         except Exception as e:
-            print(f"Error synthesizing with Claude: {e}")
+            self.logger.error(f"Error synthesizing with Claude: {e}")
             # Fallback to simple template
             return self._fallback_synthesis(items)
 

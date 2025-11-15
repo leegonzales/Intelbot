@@ -3,6 +3,8 @@
 from typing import List, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from research_agent.utils.logger import get_logger
+
 
 class SourceAgent:
     """
@@ -14,6 +16,7 @@ class SourceAgent:
     def __init__(self, config, state_manager):
         self.config = config
         self.state = state_manager
+        self.logger = get_logger("agents.source")
         self.sources = []
 
         # Initialize enabled sources
@@ -54,7 +57,7 @@ class SourceAgent:
         all_items = []
 
         if not self.sources:
-            print("Warning: No sources enabled")
+            self.logger.warning("No sources enabled")
             return all_items
 
         with ThreadPoolExecutor(max_workers=len(self.sources)) as executor:
@@ -69,11 +72,11 @@ class SourceAgent:
                 source = futures[future]
                 try:
                     items = future.result()
-                    print(f"Collected {len(items)} items from {source.__class__.__name__}")
+                    self.logger.info(f"Collected {len(items)} items from {source.__class__.__name__}")
                     all_items.extend(items)
                 except Exception as e:
                     # Log error but continue with other sources
-                    print(f"Error fetching from {source.__class__.__name__}: {e}")
+                    self.logger.error(f"Error fetching from {source.__class__.__name__}: {e}")
 
-        print(f"Total items collected: {len(all_items)}")
+        self.logger.info(f"Total items collected: {len(all_items)}")
         return all_items

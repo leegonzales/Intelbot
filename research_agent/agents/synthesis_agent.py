@@ -102,15 +102,22 @@ Generate today's research digest using the following items and the synthesis tem
 
 {synthesis_template}
 
-## Validation Report (INCLUDE AT TOP)
+## Validation Report (INCLUDE AT VERY TOP)
 
 {validation_block}
 
-**CRITICAL**: Include this validation block immediately after the TL;DR section in your digest.
+**CRITICAL**: Include this validation block immediately after the frontmatter (YAML block), BEFORE the title and TL;DR.
+
+The structure should be:
+1. Frontmatter (---...---)
+2. Quality Control block (validation)
+3. Title (# AI Research Digest...)
+4. TL;DR
+5. Rest of digest
 
 ## Instructions
 
-1. **FIRST**: Include the Validation Report block right after TL;DR
+1. **FIRST**: Include the Validation Report block right after frontmatter, BEFORE title
 2. Group items by theme (agent architectures, prompt engineering, etc.)
 3. Write concise, precise descriptions (max 3 sentences per item)
 4. Include "why this matters" for each item

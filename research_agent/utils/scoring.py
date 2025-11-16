@@ -70,7 +70,7 @@ class RelevanceScorer:
 
     def _keyword_score(self, item: Dict) -> float:
         """Score based on keyword matching."""
-        text = (item.get('title', '') + ' ' + item.get('snippet', '')).lower()
+        text = (item.get('title', '') + ' ' + (item.get('snippet') or '')).lower()
 
         matches = sum(1 for keyword in self.high_value_keywords if keyword in text)
 
@@ -79,8 +79,25 @@ class RelevanceScorer:
 
     def _source_score(self, item: Dict) -> float:
         """Score based on source tier."""
-        source = item.get('source', '').lower()
+        metadata = item.get('source_metadata', {})
 
+        # Check for explicit tier metadata first (new tiered system)
+        if 'tier' in metadata:
+            tier = metadata['tier']
+            # Tier 1: Primary sources (research labs, arXiv) = highest weight
+            # Tier 2: Synthesis sources (strategic thinkers) = very high weight
+            # Tier 3: News aggregators = medium weight
+            # Tier 5: Implementation blogs = medium weight
+            tier_weights = {
+                1: 1.0,   # Primary sources
+                2: 0.95,  # Synthesis sources (slightly lower than primary)
+                3: 0.7,   # News
+                5: 0.75,  # Implementation
+            }
+            return tier_weights.get(tier, 0.5)
+
+        # Fall back to old source string matching
+        source = item.get('source', '').lower()
         for tier_source, tier_score in self.source_tiers.items():
             if tier_source in source:
                 return tier_score
@@ -122,6 +139,10 @@ class RelevanceScorer:
                 published_date = datetime.fromisoformat(published_date)
             except Exception:
                 return 0.5
+
+        # Remove timezone info for comparison
+        if hasattr(published_date, 'tzinfo') and published_date.tzinfo is not None:
+            published_date = published_date.replace(tzinfo=None)
 
         # Calculate age in hours
         age_hours = (datetime.now() - published_date).total_seconds() / 3600

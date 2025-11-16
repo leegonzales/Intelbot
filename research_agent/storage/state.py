@@ -99,6 +99,9 @@ class StateManager:
 
     def _hash_content(self, content: str) -> str:
         """Generate SHA256 hash of normalized content."""
+        # Handle None values
+        if content is None:
+            content = ''
         normalized = content.lower().strip()
         return hashlib.sha256(normalized.encode()).hexdigest()
 
@@ -163,18 +166,30 @@ class StateManager:
 
             return results
 
-    def add_item(self, item: Dict) -> int:
+    def add_item(self, item: Dict, conn=None) -> int:
         """
         Add new item to database or return existing ID.
 
         Issue #5 Fix: Use INSERT OR IGNORE to handle duplicates gracefully.
 
+        Args:
+            item: Item dictionary
+            conn: Optional database connection (if None, creates new one)
+
         Returns:
             Item ID (new or existing)
         """
+        # Use provided connection or create new one
+        if conn is not None:
+            return self._add_item_with_conn(conn, item)
+
         with self._get_conn() as conn:
-            # Try to insert (will be ignored if URL already exists)
-            cursor = conn.execute("""
+            return self._add_item_with_conn(conn, item)
+
+    def _add_item_with_conn(self, conn, item: Dict) -> int:
+        """Internal method to add item with existing connection."""
+        # Try to insert (will be ignored if URL already exists)
+        cursor = conn.execute("""
                 INSERT OR IGNORE INTO seen_items (
                     url, content_hash, title, snippet, content,
                     source, source_metadata, published_date,
@@ -192,15 +207,15 @@ class StateManager:
                 item.get('author'),
                 item.get('category'),
                 ','.join(item.get('tags', []))
-            ))
+        ))
 
-            # Get ID (either newly inserted or existing)
-            if cursor.lastrowid:
-                return cursor.lastrowid
-            else:
-                # Item already existed, get its ID
-                cursor = conn.execute("SELECT id FROM seen_items WHERE url = ?", (item['url'],))
-                return cursor.fetchone()[0]
+        # Get ID (either newly inserted or existing)
+        if cursor.lastrowid:
+            return cursor.lastrowid
+        else:
+            # Item already existed, get its ID
+            cursor = conn.execute("SELECT id FROM seen_items WHERE url = ?", (item['url'],))
+            return cursor.fetchone()[0]
 
     def filter_new(self, items: List[Dict]) -> List[Dict]:
         """
@@ -269,7 +284,7 @@ class StateManager:
 
             # Add new items to seen_items and link to run
             for item in items_new:
-                item_id = self.add_item(item)
+                item_id = self.add_item(item, conn=conn)
 
                 # Link to run if included in digest (compare by URL, not object reference)
                 if item['url'] in url_to_rank:

@@ -16,6 +16,8 @@ class ArxivSource(ResearchSource):
     def __init__(self, config):
         super().__init__(config)
         self.logger = get_logger("sources.arxiv")
+        self.tier = config.get('tier', 1)  # arXiv is tier 1 by default
+        self.priority = config.get('priority', 'high')
 
     @retry(max_attempts=3, backoff_base=2.0, exceptions=(Exception,))
     def fetch(self) -> List[Dict]:
@@ -43,7 +45,9 @@ class ArxivSource(ResearchSource):
 
                 for result in search.results():
                     # Only include papers from last 7 days
-                    if (datetime.now() - result.published).days > 7:
+                    # Remove timezone info for comparison
+                    published_naive = result.published.replace(tzinfo=None)
+                    if (datetime.now() - published_naive).days > 7:
                         continue
 
                     item = self._create_item(
@@ -54,8 +58,10 @@ class ArxivSource(ResearchSource):
                         content=result.summary,
                         source_metadata={
                             'arxiv_id': result.entry_id.split('/')[-1],
-                            'categories': [c.name for c in result.categories],
+                            'categories': [c.name if hasattr(c, 'name') else str(c) for c in result.categories],
                             'pdf_url': result.pdf_url,
+                            'tier': self.tier,
+                            'priority': self.priority,
                         },
                         published_date=result.published,
                         author=', '.join([a.name for a in result.authors[:3]]),

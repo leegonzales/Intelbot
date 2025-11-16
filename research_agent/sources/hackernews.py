@@ -17,6 +17,8 @@ class HackerNewsSource(ResearchSource):
     def __init__(self, config):
         super().__init__(config)
         self.logger = get_logger("sources.hackernews")
+        self.tier = config.get('tier', 3)  # HackerNews is tier 3 by default
+        self.priority = config.get('priority', 'medium')
 
     @retry(max_attempts=3, backoff_base=2.0, exceptions=(Exception,))
     def fetch(self) -> List[Dict]:
@@ -68,6 +70,8 @@ class HackerNewsSource(ResearchSource):
                                 'points': story.get('score', 0),
                                 'comments': story.get('descendants', 0),
                                 'hn_url': f"https://news.ycombinator.com/item?id={story_id}",
+                                'tier': self.tier,
+                                'priority': self.priority,
                             },
                             published_date=datetime.fromtimestamp(story.get('time', 0)),
                             author=story.get('by'),

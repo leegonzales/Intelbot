@@ -1,6 +1,7 @@
 """Synthesis agent using Claude."""
 
 from typing import List, Dict
+from datetime import datetime
 import anthropic
 
 from research_agent.utils.logger import get_logger
@@ -19,12 +20,13 @@ class SynthesisAgent:
         # Initialize Anthropic client
         self.client = anthropic.Anthropic()
 
-    def synthesize(self, items: List[Dict]) -> str:
+    def synthesize(self, items: List[Dict], all_items: List[Dict] = None) -> str:
         """
         Generate digest markdown from items.
 
         Args:
             items: Selected and ranked items for digest
+            all_items: All collected items (for comprehensive source stats)
 
         Returns:
             Formatted markdown digest
@@ -33,12 +35,37 @@ class SynthesisAgent:
         system_prompt = self.prompts.get_system_prompt()
         synthesis_template = self.prompts.get_synthesis_template()
 
+        # Get current date for digest header
+        now = datetime.now()
+        date_iso = now.strftime("%Y-%m-%d")
+        date_full = now.strftime("%A, %B %d, %Y")
+
         # Build context from items
         items_context = self._format_items_context(items)
+        # Use all_items for comprehensive source stats if available
+        source_stats, source_count = self._calculate_source_stats(all_items if all_items else items, len(items))
 
         # Construct synthesis prompt
         synthesis_prompt = f"""
 {system_prompt}
+
+---
+
+## Current Date
+
+Today is {date_full} ({date_iso})
+
+Use this date in the digest header. Do NOT use any other date.
+
+---
+
+## Source Information
+
+Total unique sources: {source_count}
+Total items analyzed: {len(all_items) if all_items else len(items)}
+Items selected for digest: {len(items)}
+
+Use these numbers in the frontmatter and footer.
 
 ---
 
@@ -49,6 +76,10 @@ Generate today's research digest using the following items and the synthesis tem
 ## Items to Synthesize
 
 {items_context}
+
+## Source Statistics
+
+{source_stats}
 
 ## Synthesis Template
 
@@ -62,6 +93,7 @@ Generate today's research digest using the following items and the synthesis tem
 4. Generate TL;DR summarizing key developments
 5. Note any signals/trends
 6. Follow template structure exactly
+7. **IMPORTANT**: Use the Source Statistics above to populate the "📡 Sources Polled" footer section
 
 Begin synthesis now.
 """
@@ -93,14 +125,35 @@ Begin synthesis now.
         formatted = []
 
         for i, item in enumerate(items, 1):
+            # Extract tier info
+            metadata = item.get('source_metadata', {})
+            tier = metadata.get('tier', 'Unknown')
+            priority = metadata.get('priority', 'medium')
+            perspective = metadata.get('perspective', '')
+            focus = metadata.get('focus', '')
+
+            tier_label = f"Tier {tier}"
+            if tier == 1:
+                tier_label += " (Primary Source - Research Labs/arXiv)"
+            elif tier == 2:
+                tier_label += " (Synthesis Source - Strategic Analysis)"
+            elif tier == 3:
+                tier_label += " (News Aggregator)"
+            elif tier == 5:
+                tier_label += " (Implementation Blog)"
+
             formatted.append(f"""
 ### Item {i}: {item['title']}
 
 - **URL**: {item['url']}
 - **Source**: {item['source']}
+- **Tier**: {tier_label}
+- **Priority**: {priority}
 - **Date**: {item.get('published_date', 'Unknown')}
 - **Author**: {item.get('author', 'Unknown')}
-- **Score**: {item.get('score', 0):.3f}
+- **Relevance Score**: {item.get('score', 0):.3f}
+{f"- **Perspective**: {perspective}" if perspective else ""}
+{f"- **Focus**: {focus}" if focus else ""}
 
 **Snippet**:
 {item.get('snippet', 'No snippet available')}
@@ -111,6 +164,68 @@ Begin synthesis now.
 """)
 
         return "\n".join(formatted)
+
+    def _calculate_source_stats(self, items: List[Dict], selected_count: int = None):
+        """
+        Calculate source statistics for the footer.
+
+        Returns:
+            Tuple of (stats_string, unique_source_count)
+        """
+        from collections import defaultdict
+
+        tier_sources = defaultdict(lambda: defaultdict(int))
+        unique_sources = set()
+
+        for item in items:
+            metadata = item.get('source_metadata', {})
+            tier = metadata.get('tier', 'Unknown')
+            source_name = metadata.get('feed_name') or metadata.get('blog_name') or item.get('source', 'Unknown')
+
+            # Clean up source name
+            source_name = source_name.replace('rss:', '').replace('blog:', '').strip()
+
+            tier_sources[tier][source_name] += 1
+            unique_sources.add(source_name)
+
+        # Format the statistics
+        stats = []
+        if selected_count and selected_count != len(items):
+            stats.append(f"**Total Items Analyzed**: {len(items)}")
+            stats.append(f"**Items Included in Digest**: {selected_count}")
+        else:
+            stats.append(f"**Total Items in Digest**: {len(items)}")
+        stats.append("")
+
+        # Tier 1
+        if 1 in tier_sources:
+            stats.append("**Tier 1 (Primary Sources - Research & Labs)**:")
+            for source, count in sorted(tier_sources[1].items()):
+                stats.append(f"- {source}: {count} items")
+            stats.append("")
+
+        # Tier 2
+        if 2 in tier_sources:
+            stats.append("**Tier 2 (Synthesis Sources - Strategic Analysis)**:")
+            for source, count in sorted(tier_sources[2].items()):
+                stats.append(f"- {source}: {count} items")
+            stats.append("")
+
+        # Tier 3
+        if 3 in tier_sources:
+            stats.append("**Tier 3 (News & Community)**:")
+            for source, count in sorted(tier_sources[3].items()):
+                stats.append(f"- {source}: {count} items")
+            stats.append("")
+
+        # Tier 5
+        if 5 in tier_sources:
+            stats.append("**Tier 5 (Implementation Blogs)**:")
+            for source, count in sorted(tier_sources[5].items()):
+                stats.append(f"- {source}: {count} items")
+            stats.append("")
+
+        return ("\n".join(stats), len(unique_sources))
 
     def _fallback_synthesis(self, items: List[Dict]) -> str:
         """
@@ -141,7 +256,7 @@ Begin synthesis now.
             if item.get('published_date'):
                 lines.append(f"**Date**: {item['published_date']}")
             lines.append("")
-            lines.append(item.get('snippet', ''))
+            lines.append(item.get('snippet') or '')
             lines.append("")
 
         return "\n".join(lines)

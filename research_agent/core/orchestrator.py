@@ -121,7 +121,7 @@ class ResearchOrchestrator:
 
             # 5. Synthesize digest using Claude
             self.logger.info(f"[4/6] Synthesizing digest...")
-            digest_content = self.synthesis_agent.synthesize(selected)
+            digest_content = self.synthesis_agent.synthesize(selected, all_items=items)
 
             # 6. Write output
             output_path = None

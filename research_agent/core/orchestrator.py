@@ -113,23 +113,25 @@ class ResearchOrchestrator:
             self.logger.info(f"[3/6] Scoring and ranking items...")
             ranked_items = self._score_and_rank(new_items)
 
-            # 4. Select top N for digest
+            # 4. Select items with diversity constraints
             target_items = self.config.research.get('target_items', 10)
             max_items = self.config.research.get('max_items', 15)
-            selected = ranked_items[:min(target_items, max_items)]
+            target_count = min(target_items, max_items)
+            self.logger.info(f"[4/6] Selecting {target_count} items with diversity constraints...")
+            selected = self._select_with_diversity(ranked_items, target_count)
             self.logger.info(f"Selected {len(selected)} items for digest")
 
             # 5. Synthesize digest using Claude
-            self.logger.info(f"[4/6] Synthesizing digest...")
+            self.logger.info(f"[5/6] Synthesizing digest...")
             digest_content = self.synthesis_agent.synthesize(selected, all_items=items)
 
             # 6. Write output
             output_path = None
             if not dry_run:
-                self.logger.info(f"[5/6] Writing digest...")
+                self.logger.info(f"[6/6] Writing digest...")
                 output_path = self.digest_writer.write(digest_content)
 
-                self.logger.info(f"[6/6] Recording run in database...")
+                self.logger.info(f"Recording run in database...")
                 runtime = (datetime.now() - start_time).total_seconds()
                 self.state.record_run(
                     items,
@@ -186,3 +188,124 @@ class ResearchOrchestrator:
 
         # Sort by score (descending)
         return sorted(scored, key=lambda x: x['score'], reverse=True)
+
+    def _select_with_diversity(self, ranked_items: List[Dict], target_count: int = 15) -> List[Dict]:
+        """
+        Select items with diversity constraints to ensure balanced digest.
+
+        Constraints:
+        - Minimum per tier (Tier 1: 3, Tier 2: 5, Tier 5: 1)
+        - Maximum per source (3 items max from any single source)
+        - Minimum arXiv papers (2-3)
+
+        Args:
+            ranked_items: Items sorted by relevance score (descending)
+            target_count: Target number of items (default: 15)
+
+        Returns:
+            List of selected items meeting diversity constraints
+        """
+        from collections import defaultdict
+
+        selected = []
+        source_counts = defaultdict(int)
+        tier_counts = defaultdict(int)
+        arxiv_count = 0
+
+        # Diversity constraints
+        MIN_TIER_1 = 3  # At least 3 Tier 1 (primary sources)
+        MIN_TIER_2 = 5  # At least 5 Tier 2 (strategic thinkers - HIGHEST VALUE)
+        MIN_TIER_5 = 1  # At least 1 Tier 5 (implementation)
+        MIN_ARXIV = 2   # At least 2 arXiv papers
+        MAX_PER_SOURCE = 3  # No more than 3 from any single source
+
+        # First pass: Ensure minimums are met
+        # Priority order: Tier 2 (strategic), arXiv, Tier 1, Tier 5
+
+        # 1. Get top Tier 2 items (strategic thinkers - HIGHEST PRIORITY)
+        tier_2_items = [item for item in ranked_items if item.get('source_metadata', {}).get('tier') == 2]
+        for item in tier_2_items[:MIN_TIER_2]:
+            source = self._get_source_name(item)
+            if source_counts[source] < MAX_PER_SOURCE:
+                selected.append(item)
+                source_counts[source] += 1
+                tier_counts[2] += 1
+
+        # 2. Get arXiv papers
+        arxiv_items = [item for item in ranked_items if 'arxiv' in item.get('source', '').lower()]
+        for item in arxiv_items[:MIN_ARXIV]:
+            source = self._get_source_name(item)
+            if source_counts[source] < MAX_PER_SOURCE and item not in selected:
+                selected.append(item)
+                source_counts[source] += 1
+                tier_counts[1] += 1
+                arxiv_count += 1
+
+        # 3. Get Tier 1 items (but exclude arXiv we already added)
+        tier_1_items = [
+            item for item in ranked_items
+            if item.get('source_metadata', {}).get('tier') == 1
+            and 'arxiv' not in item.get('source', '').lower()
+        ]
+        for item in tier_1_items:
+            if tier_counts[1] >= MIN_TIER_1:
+                break
+            source = self._get_source_name(item)
+            if source_counts[source] < MAX_PER_SOURCE and item not in selected:
+                selected.append(item)
+                source_counts[source] += 1
+                tier_counts[1] += 1
+
+        # 4. Get Tier 5 items (implementation)
+        tier_5_items = [item for item in ranked_items if item.get('source_metadata', {}).get('tier') == 5]
+        for item in tier_5_items:
+            if tier_counts[5] >= MIN_TIER_5:
+                break
+            source = self._get_source_name(item)
+            if source_counts[source] < MAX_PER_SOURCE and item not in selected:
+                selected.append(item)
+                source_counts[source] += 1
+                tier_counts[5] += 1
+
+        # Second pass: Fill remaining slots with highest-scored items
+        for item in ranked_items:
+            if len(selected) >= target_count:
+                break
+
+            if item in selected:
+                continue
+
+            source = self._get_source_name(item)
+            if source_counts[source] < MAX_PER_SOURCE:
+                selected.append(item)
+                source_counts[source] += 1
+                tier = item.get('source_metadata', {}).get('tier', 0)
+                tier_counts[tier] += 1
+
+        # Log diversity stats
+        self.logger.info(f"Diversity stats:")
+        self.logger.info(f"  Tier 1 (Primary): {tier_counts[1]} items")
+        self.logger.info(f"  Tier 2 (Strategic): {tier_counts[2]} items")
+        self.logger.info(f"  Tier 3 (News): {tier_counts[3]} items")
+        self.logger.info(f"  Tier 5 (Implementation): {tier_counts[5]} items")
+        self.logger.info(f"  arXiv papers: {arxiv_count} items")
+        self.logger.info(f"  Unique sources: {len(source_counts)} sources")
+
+        # Warn if diversity constraints not met
+        if tier_counts[2] < MIN_TIER_2:
+            self.logger.warning(f"⚠️  Only {tier_counts[2]} Tier 2 items (target: {MIN_TIER_2})")
+        if arxiv_count < MIN_ARXIV:
+            self.logger.warning(f"⚠️  Only {arxiv_count} arXiv papers (target: {MIN_ARXIV})")
+        if tier_counts[1] < MIN_TIER_1:
+            self.logger.warning(f"⚠️  Only {tier_counts[1]} Tier 1 items (target: {MIN_TIER_1})")
+
+        # Re-sort by score before returning
+        return sorted(selected, key=lambda x: x['score'], reverse=True)
+
+    def _get_source_name(self, item: Dict) -> str:
+        """Extract source name from item for diversity tracking."""
+        metadata = item.get('source_metadata', {})
+        source_name = metadata.get('feed_name') or metadata.get('blog_name') or item.get('source', 'Unknown')
+        # Clean up source name
+        source_name = source_name.replace('rss:', '').replace('blog:', '').strip()
+        return source_name

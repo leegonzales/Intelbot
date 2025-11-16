@@ -52,19 +52,19 @@ class RelevanceScorer:
         score = 0.0
 
         # 1. Base relevance from keywords
-        score += self._keyword_score(item) * 0.3
+        score += self._keyword_score(item) * 0.25
 
-        # 2. Source tier weight
-        score += self._source_score(item) * 0.2
+        # 2. Source tier weight (DOUBLED to prioritize strategic sources)
+        score += self._source_score(item) * 0.40
 
         # 3. Engagement metrics
-        score += self._engagement_score(item) * 0.2
+        score += self._engagement_score(item) * 0.15
 
         # 4. Recency bonus
-        score += self._recency_score(item) * 0.15
+        score += self._recency_score(item) * 0.10
 
         # 5. Novelty bonus
-        score += self._novelty_score(item) * 0.15
+        score += self._novelty_score(item) * 0.10
 
         return score
 
@@ -84,15 +84,15 @@ class RelevanceScorer:
         # Check for explicit tier metadata first (new tiered system)
         if 'tier' in metadata:
             tier = metadata['tier']
-            # Tier 1: Primary sources (research labs, arXiv) = highest weight
-            # Tier 2: Synthesis sources (strategic thinkers) = very high weight
+            # Tier 2: Synthesis sources (strategic thinkers) = HIGHEST VALUE
+            # Tier 1: Primary sources (research labs, arXiv) = very high weight
             # Tier 3: News aggregators = medium weight
             # Tier 5: Implementation blogs = medium weight
             tier_weights = {
-                1: 1.0,   # Primary sources
-                2: 0.95,  # Synthesis sources (slightly lower than primary)
-                3: 0.7,   # News
-                5: 0.75,  # Implementation
+                2: 1.0,   # Synthesis sources (HIGHEST - strategic analysis)
+                1: 0.9,   # Primary sources (research labs, arXiv)
+                3: 0.6,   # News aggregators
+                5: 0.7,   # Implementation blogs
             }
             return tier_weights.get(tier, 0.5)
 

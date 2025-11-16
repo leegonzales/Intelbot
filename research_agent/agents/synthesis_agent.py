@@ -107,6 +107,20 @@ Generate today's research digest using the following items and the synthesis tem
 6. Follow template structure exactly
 7. **IMPORTANT**: Use the Source Statistics above to populate the "📡 Sources Polled" footer section
 
+## DATE ACCURACY REQUIREMENTS (CRITICAL)
+
+**You MUST display publication dates EXACTLY as provided in the item metadata.**
+
+- Today is {date_iso} (November 16, 2025)
+- Each item above includes a "Date" field - USE THAT EXACT DATE
+- If date shows "2025-11-13", display as "Nov 2025" (current year)
+- If date shows "2024-12-19", display as "Dec 2024" (last year)
+- If date shows "2025-10-15", display as "Oct 2025" (current year)
+- DO NOT default dates to 2024 unless explicitly stated as 2024
+- DO NOT invent or guess dates
+
+**VALIDATE**: Before finalizing, verify every article date matches the metadata provided.
+
 Begin synthesis now.
 """
 

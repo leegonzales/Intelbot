@@ -241,27 +241,41 @@ class StateManager:
 
         return new_items
 
-    def get_recent_items(self, days: int = 7, limit: int = 20) -> List[Dict]:
+    def get_recent_items(self, days: int = 7, limit: int = 20, max_age_days: int = 30) -> List[Dict]:
         """
         Get recent items from database to supplement digest when few new items.
 
+        CRITICAL: Filters by BOTH first_seen and published_date to prevent stale content.
+
         Args:
-            days: Number of days to look back
+            days: Number of days to look back for first_seen
             limit: Maximum items to return
+            max_age_days: Maximum age of published_date (default: 30 days)
 
         Returns:
             List of recent items formatted like collected items
         """
         with self._get_conn() as conn:
+            # TRUST FIX: Prevent old content from appearing in "recent" supplements
+            # Must satisfy BOTH conditions:
+            # 1. We collected it recently (first_seen within 'days')
+            # 2. It was published recently (published_date within 'max_age_days')
             cursor = conn.execute("""
                 SELECT
                     url, title, snippet, content, source, source_metadata,
                     author, published_date, category, tags
                 FROM seen_items
                 WHERE datetime(first_seen) >= datetime('now', '-' || ? || ' days')
+                AND (
+                    -- Include items with no published_date (will be scored low by recency)
+                    published_date IS NULL
+                    OR
+                    -- Or items published within max_age_days
+                    datetime(published_date) >= datetime('now', '-' || ? || ' days')
+                )
                 ORDER BY first_seen DESC
                 LIMIT ?
-            """, (days, limit))
+            """, (days, max_age_days, limit))
 
             items = []
             for row in cursor.fetchall():
@@ -281,6 +295,13 @@ class StateManager:
                     except:
                         tags = row['tags'].split(',') if row['tags'] else []
 
+                # TRUST FIX: Extract date from title if published_date is NULL
+                published_date = row['published_date']
+                if not published_date:
+                    extracted = self._extract_date_from_title(row['title'])
+                    if extracted:
+                        published_date = extracted
+
                 item = {
                     'url': row['url'],
                     'title': row['title'],
@@ -289,10 +310,30 @@ class StateManager:
                     'source': row['source'],
                     'source_metadata': metadata,
                     'author': row['author'],
-                    'published_date': row['published_date'],
+                    'published_date': published_date,
                     'category': row['category'],
                     'tags': tags
                 }
+
+                # TRUST FIX: Skip items older than max_age_days after extraction
+                if published_date:
+                    from datetime import datetime, timedelta
+                    try:
+                        if isinstance(published_date, str):
+                            pub_dt = datetime.fromisoformat(published_date.replace('Z', '+00:00'))
+                        else:
+                            pub_dt = published_date
+
+                        # Remove timezone for comparison
+                        if hasattr(pub_dt, 'tzinfo') and pub_dt.tzinfo:
+                            pub_dt = pub_dt.replace(tzinfo=None)
+
+                        age_days = (datetime.now() - pub_dt).days
+                        if age_days > max_age_days:
+                            continue  # Skip this item
+                    except:
+                        pass  # If date parsing fails, include the item
+
                 items.append(item)
 
             return items
@@ -388,3 +429,34 @@ class StateManager:
             """, (query, limit))
 
             return [dict(row) for row in cursor]
+
+    def _extract_date_from_title(self, title: str) -> str:
+        """
+        Extract date from title for blog posts that embed dates.
+
+        Example: "Building Effective AgentsDec 19, 2024" -> "2024-12-19"
+        """
+        import re
+        from dateutil import parser as date_parser
+
+        # Common patterns in Anthropic blog titles
+        # Pattern: "MonthName DD, YYYY" (e.g., "Dec 19, 2024")
+        month_day_year = re.search(r'([A-Z][a-z]{2,8})\s+(\d{1,2}),?\s+(\d{4})', title)
+        if month_day_year:
+            try:
+                date_str = f"{month_day_year.group(1)} {month_day_year.group(2)}, {month_day_year.group(3)}"
+                parsed = date_parser.parse(date_str)
+                return parsed.strftime('%Y-%m-%d')
+            except:
+                pass
+
+        # Fallback: try dateutil's fuzzy parsing
+        try:
+            parsed = date_parser.parse(title, fuzzy=True)
+            # Only return if year is reasonable (2020-2030)
+            if 2020 <= parsed.year <= 2030:
+                return parsed.strftime('%Y-%m-%d')
+        except:
+            pass
+
+        return None

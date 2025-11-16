@@ -125,12 +125,29 @@ class ResearchOrchestrator:
             selected = self._select_with_diversity(ranked_items, target_count)
             self.logger.info(f"Selected {len(selected)} items for digest")
 
+            # 4.5. Validate selected items (QC check)
+            self.logger.info(f"[4.5/6] Validating digest quality...")
+            validation = self._validate_digest_quality(selected, all_items=items)
+
+            # Log validation results
+            if validation['errors']:
+                for error in validation['errors']:
+                    self.logger.error(f"VALIDATION ERROR: {error}")
+            if validation['warnings']:
+                for warning in validation['warnings']:
+                    self.logger.warning(f"VALIDATION WARNING: {warning}")
+
+            # Fail if critical errors found
+            if validation['errors']:
+                raise ValueError(f"Digest validation failed: {validation['errors']}")
+
             # 5. Synthesize digest using Claude
             self.logger.info(f"[5/6] Synthesizing digest...")
             digest_content = self.synthesis_agent.synthesize(
                 selected,
                 all_items=items,
-                new_items_count=len(new_items)
+                new_items_count=len(new_items),
+                validation_report=validation
             )
 
             # 6. Write output
@@ -317,3 +334,132 @@ class ResearchOrchestrator:
         # Clean up source name
         source_name = source_name.replace('rss:', '').replace('blog:', '').strip()
         return source_name
+
+    def _validate_digest_quality(self, selected: List[Dict], all_items: List[Dict] = None) -> Dict:
+        """
+        Validate digest quality before synthesis.
+
+        Checks for:
+        - Date freshness (no items > 30 days old)
+        - arXiv representation (>= 2 papers)
+        - Source diversity (>= 6 unique sources)
+        - Anthropic over-representation (< 40%)
+        - Missing critical metadata
+
+        Returns:
+            Dict with 'status', 'errors', 'warnings', and 'metrics'
+        """
+        from collections import Counter
+        from datetime import datetime, timedelta
+
+        errors = []
+        warnings = []
+        metrics = {}
+
+        # Calculate metrics
+        total_items = len(selected)
+
+        # 1. Check date freshness
+        max_age_days = 30
+        stale_items = []
+        ages = []
+        missing_dates = []
+
+        for item in selected:
+            pub_date = item.get('published_date')
+            if not pub_date:
+                missing_dates.append(item['title'][:50])
+                continue
+
+            try:
+                if isinstance(pub_date, str):
+                    pub_dt = datetime.fromisoformat(pub_date.replace('Z', '+00:00'))
+                else:
+                    pub_dt = pub_date
+
+                if hasattr(pub_dt, 'tzinfo') and pub_dt.tzinfo:
+                    pub_dt = pub_dt.replace(tzinfo=None)
+
+                age_days = (datetime.now() - pub_dt).days
+                ages.append(age_days)
+
+                if age_days > max_age_days:
+                    stale_items.append({
+                        'title': item['title'][:50],
+                        'age_days': age_days,
+                        'published': pub_date
+                    })
+            except Exception as e:
+                self.logger.debug(f"Date parsing error for {item['title'][:30]}: {e}")
+
+        # Critical error if stale content found
+        if stale_items:
+            for stale in stale_items:
+                errors.append(f"Stale content ({stale['age_days']}d old): {stale['title']}")
+
+        # Warning if many missing dates
+        if len(missing_dates) > 3:
+            warnings.append(f"{len(missing_dates)} items missing published_date")
+
+        # Calculate age metrics
+        if ages:
+            metrics['oldest_item_days'] = max(ages)
+            metrics['avg_item_age_days'] = sum(ages) / len(ages)
+            metrics['newest_item_days'] = min(ages)
+        else:
+            metrics['oldest_item_days'] = None
+            metrics['avg_item_age_days'] = None
+
+        # 2. Check arXiv representation
+        arxiv_count = sum(1 for item in selected if 'arxiv' in item.get('source', '').lower())
+        metrics['arxiv_count'] = arxiv_count
+
+        if arxiv_count < 2:
+            warnings.append(f"Low arXiv representation: {arxiv_count} papers (target: 2-3)")
+
+        # 3. Check source diversity
+        sources = [self._get_source_name(item) for item in selected]
+        unique_sources = len(set(sources))
+        metrics['unique_sources'] = unique_sources
+
+        if unique_sources < 6:
+            warnings.append(f"Low source diversity: {unique_sources} sources (target: 6+)")
+
+        # 4. Check Anthropic over-representation
+        anthropic_count = sum(1 for s in sources if 'anthropic' in s.lower())
+        anthropic_pct = (anthropic_count / total_items * 100) if total_items > 0 else 0
+        metrics['anthropic_count'] = anthropic_count
+        metrics['anthropic_pct'] = anthropic_pct
+
+        if anthropic_pct > 40:
+            warnings.append(f"Anthropic over-represented: {anthropic_count}/{total_items} items ({anthropic_pct:.0f}%)")
+
+        # 5. Tier distribution
+        tier_counts = Counter(item.get('source_metadata', {}).get('tier', 0) for item in selected)
+        metrics['tier1_count'] = tier_counts.get(1, 0)
+        metrics['tier2_count'] = tier_counts.get(2, 0)
+        metrics['tier3_count'] = tier_counts.get(3, 0)
+        metrics['tier5_count'] = tier_counts.get(5, 0)
+
+        if tier_counts.get(2, 0) < 4:
+            warnings.append(f"Low Tier 2 (strategic): {tier_counts.get(2, 0)} items (target: 4-5)")
+
+        # 6. Overall collection stats (if all_items provided)
+        if all_items:
+            metrics['total_collected'] = len(all_items)
+            metrics['selection_rate'] = (total_items / len(all_items) * 100) if len(all_items) > 0 else 0
+
+        # Determine overall status
+        if errors:
+            status = 'FAILED'
+        elif warnings:
+            status = 'WARNING'
+        else:
+            status = 'PASS'
+
+        return {
+            'status': status,
+            'errors': errors,
+            'warnings': warnings,
+            'metrics': metrics
+        }

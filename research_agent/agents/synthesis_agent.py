@@ -20,13 +20,15 @@ class SynthesisAgent:
         # Initialize Anthropic client
         self.client = anthropic.Anthropic()
 
-    def synthesize(self, items: List[Dict], all_items: List[Dict] = None, new_items_count: int = None) -> str:
+    def synthesize(self, items: List[Dict], all_items: List[Dict] = None, new_items_count: int = None, validation_report: Dict = None) -> str:
         """
         Generate digest markdown from items.
 
         Args:
             items: Selected and ranked items for digest
             all_items: All collected items (for comprehensive source stats)
+            new_items_count: Number of new items found today
+            validation_report: Quality validation results
 
         Returns:
             Formatted markdown digest
@@ -50,6 +52,9 @@ class SynthesisAgent:
         items_selected = len(items)
         new_count = new_items_count if new_items_count is not None else items_selected
         using_supplemental = new_count < items_selected
+
+        # Format validation report for digest
+        validation_block = self._format_validation_block(validation_report) if validation_report else ""
 
         # Construct synthesis prompt
         synthesis_prompt = f"""
@@ -97,15 +102,22 @@ Generate today's research digest using the following items and the synthesis tem
 
 {synthesis_template}
 
+## Validation Report (INCLUDE AT TOP)
+
+{validation_block}
+
+**CRITICAL**: Include this validation block immediately after the TL;DR section in your digest.
+
 ## Instructions
 
-1. Group items by theme (agent architectures, prompt engineering, etc.)
-2. Write concise, precise descriptions (max 3 sentences per item)
-3. Include "why this matters" for each item
-4. Generate TL;DR summarizing key developments
-5. Note any signals/trends
-6. Follow template structure exactly
-7. **IMPORTANT**: Use the Source Statistics above to populate the "📡 Sources Polled" footer section
+1. **FIRST**: Include the Validation Report block right after TL;DR
+2. Group items by theme (agent architectures, prompt engineering, etc.)
+3. Write concise, precise descriptions (max 3 sentences per item)
+4. Include "why this matters" for each item
+5. Generate TL;DR summarizing key developments
+6. Note any signals/trends
+7. Follow template structure exactly
+8. **IMPORTANT**: Use the Source Statistics above to populate the "📡 Sources Polled" footer section
 
 ## DATE ACCURACY REQUIREMENTS (CRITICAL)
 
@@ -286,6 +298,64 @@ Begin synthesis now.
                 lines.append(f"**Date**: {item['published_date']}")
             lines.append("")
             lines.append(item.get('snippet') or '')
+            lines.append("")
+
+        return "\n".join(lines)
+
+    def _format_validation_block(self, validation: Dict) -> str:
+        """
+        Format validation report for inclusion in digest.
+
+        Creates a compact, scannable block showing quality metrics.
+        """
+        if not validation:
+            return ""
+
+        status = validation.get('status', 'UNKNOWN')
+        metrics = validation.get('metrics', {})
+        warnings = validation.get('warnings', [])
+        errors = validation.get('errors', [])
+
+        # Status emoji
+        status_emoji = {
+            'PASS': '✅',
+            'WARNING': '⚠️',
+            'FAILED': '❌'
+        }.get(status, '❓')
+
+        lines = [
+            "---",
+            "",
+            f"## 📋 Quality Control: {status_emoji} {status}",
+            ""
+        ]
+
+        # Key metrics in compact format
+        lines.append("**Digest Metrics:**")
+        lines.append(f"- Content Age: {metrics.get('newest_item_days', 'N/A')}-{metrics.get('oldest_item_days', 'N/A')} days old (avg: {metrics.get('avg_item_age_days', 0):.1f}d)")
+        lines.append(f"- Source Diversity: {metrics.get('unique_sources', 0)} unique sources")
+        lines.append(f"- arXiv Papers: {metrics.get('arxiv_count', 0)}")
+        lines.append(f"- Tier Distribution: T1={metrics.get('tier1_count', 0)} | T2={metrics.get('tier2_count', 0)} | T3={metrics.get('tier3_count', 0)} | T5={metrics.get('tier5_count', 0)}")
+
+        # Anthropic representation (only show if > 20%)
+        anthropic_pct = metrics.get('anthropic_pct', 0)
+        if anthropic_pct > 20:
+            lines.append(f"- Anthropic Content: {metrics.get('anthropic_count', 0)} items ({anthropic_pct:.0f}%)")
+
+        lines.append("")
+
+        # Errors (critical)
+        if errors:
+            lines.append("**❌ ERRORS:**")
+            for error in errors:
+                lines.append(f"- {error}")
+            lines.append("")
+
+        # Warnings (informational)
+        if warnings:
+            lines.append("**⚠️ WARNINGS:**")
+            for warning in warnings:
+                lines.append(f"- {warning}")
             lines.append("")
 
         return "\n".join(lines)

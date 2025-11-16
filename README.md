@@ -61,17 +61,52 @@ pip install -e .
 # Create config directory
 mkdir -p ~/.research-agent/{prompts,logs}
 
-# Copy prompts
-cp prompts/*.md ~/.research-agent/prompts/
+# Copy configuration examples
+cp .env.example .env
+cp config.yaml.example config.yaml
 
-# Copy config
-cp config.yaml.example ~/.research-agent/config.yaml
+# Edit configuration files with your settings
+# 1. Add your Anthropic API key to .env
+echo "ANTHROPIC_API_KEY=your-key-here" > .env
 
-# Create .env file
-cat > ~/.research-agent/.env <<EOF
-ANTHROPIC_API_KEY=your-key-here
-EOF
+# 2. Update config.yaml with your paths (Obsidian vault location, etc.)
+nano config.yaml  # or use your preferred editor
+
+# Copy and customize prompts
+cp prompts/system.example.md ~/.research-agent/prompts/system.md
+cp prompts/synthesis.example.md ~/.research-agent/prompts/synthesis.md
+cp prompts/sources.example.md ~/.research-agent/prompts/sources.md
+
+# Edit prompts to customize for your use case
+# Replace placeholders like {{USER_NAME}}, {{USER_COMPANY}}, etc.
+nano ~/.research-agent/prompts/system.md
+nano ~/.research-agent/prompts/synthesis.md
+
+# Note: The schedule.sh script will automatically generate the
+# launchd plist from the template when you run './schedule.sh install'
 ```
+
+### Customizing Prompts
+
+The prompt templates contain placeholders that you should replace:
+
+**In `~/.research-agent/prompts/system.md`**:
+- `{{USER_NAME}}` - Your name
+- `{{USER_TITLE}}` - Your job title
+- `{{USER_COMPANY}}` - Your company/organization
+- `{{USER_EXPERIENCE}}` - Your professional background
+- `{{USER_PROGRAMS}}` - Programs or initiatives you run
+- `{{USER_FRAMEWORKS}}` - Frameworks or methodologies you use
+- `{{USER_VALUES}}` - Your professional values
+
+**In `~/.research-agent/prompts/synthesis.md`**:
+- `{{USER_NAME}}` - Your name
+- `{{USER_COMPANY}}` - Your company/organization
+- `{{USER_PROGRAMS}}` - Your programs
+- `{{USER_THESIS}}` - Your key thesis or framework
+- `{{USER_WORK_CONTEXT_*}}` - Specific work contexts to connect research to
+
+This customization ensures the digest is relevant to your specific work and interests.
 
 ## Configuration
 

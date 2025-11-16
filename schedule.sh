@@ -25,8 +25,51 @@ print_usage() {
     exit 1
 }
 
+generate_plist_from_template() {
+    echo -e "${YELLOW}Generating plist from template...${NC}"
+
+    # Get current user
+    local USERNAME=$(whoami)
+
+    # Find python3 path
+    local PYTHON_PATH=$(which python3)
+    if [ -z "$PYTHON_PATH" ]; then
+        echo -e "${RED}✗${NC} Could not find python3 in PATH"
+        exit 1
+    fi
+
+    # Get python bin directory
+    local PYTHON_BIN_DIR=$(dirname "$PYTHON_PATH")
+
+    # Get project path (current directory)
+    local PROJECT_PATH=$(cd "$(dirname "$0")" && pwd)
+
+    # Get home directory
+    local HOME_DIR="$HOME"
+
+    # Check if template exists
+    if [ ! -f "${PROJECT_PATH}/com.leegonzales.research-agent.plist.example" ]; then
+        echo -e "${RED}✗${NC} Template file not found: com.leegonzales.research-agent.plist.example"
+        exit 1
+    fi
+
+    # Generate plist from template
+    sed -e "s|{{USERNAME}}|${USERNAME}|g" \
+        -e "s|{{PYTHON_PATH}}|${PYTHON_PATH}|g" \
+        -e "s|{{PYTHON_BIN_DIR}}|${PYTHON_BIN_DIR}|g" \
+        -e "s|{{PROJECT_PATH}}|${PROJECT_PATH}|g" \
+        -e "s|{{HOME}}|${HOME_DIR}|g" \
+        "${PROJECT_PATH}/com.leegonzales.research-agent.plist.example" > \
+        "${PROJECT_PATH}/com.leegonzales.research-agent.plist"
+
+    echo -e "${GREEN}✓${NC} Generated plist with your system paths"
+}
+
 install_schedule() {
     echo -e "${YELLOW}Installing research agent schedule...${NC}"
+
+    # Generate plist from template
+    generate_plist_from_template
 
     # Create LaunchAgents directory if it doesn't exist
     mkdir -p "$HOME/Library/LaunchAgents"

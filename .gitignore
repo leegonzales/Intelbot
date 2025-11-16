@@ -28,26 +28,54 @@ env/
 # IDE
 .vscode/
 .idea/
+.cursor/
 *.swp
 *.swo
 *~
+*.code-workspace
 
 # Environment variables
 .env
 !.env.example
+
+# User configuration
+config.yaml
+!config.yaml.example
+
+# User-specific launchd plist
+*.plist
+!*.plist.example
+
+# User-customized prompts
+prompts/*.md
+!prompts/*.example.md
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
 
-# Research Agent specific
+# Research Agent - User Data
+.research-agent/
 state.db
 *.log
 
+# Research Agent - Generated Output
+*-research-digest.md
+digests/
+output/
+
+# Temporary assessment files
+*_ASSESSMENT.md
+*_IMPLEMENTED.md
+GITIGNORE_ASSESSMENT.md
+
 # macOS
 .DS_Store
+.AppleDouble
+.LSOverride
 
 # Temporary files
 *.tmp
 *.bak
+~*

@@ -3,25 +3,25 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.leegonzales.research-agent</string>
+    <string>com.{{USERNAME}}.research-agent</string>
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Users/leegonzales/Projects/miniconda/bin/python3</string>
+        <string>{{PYTHON_PATH}}</string>
         <string>-m</string>
         <string>research_agent.cli.main</string>
         <string>run</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Users/leegonzales/Projects/leegonzales/Intelbot</string>
+    <string>{{PROJECT_PATH}}</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/Users/leegonzales/Projects/miniconda/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>{{PYTHON_BIN_DIR}}:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>PYTHONPATH</key>
-        <string>/Users/leegonzales/Projects/leegonzales/Intelbot</string>
+        <string>{{PROJECT_PATH}}</string>
     </dict>
 
     <key>StartCalendarInterval</key>
@@ -33,10 +33,10 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>/Users/leegonzales/.research-agent/logs/launchd-stdout.log</string>
+    <string>{{HOME}}/.research-agent/logs/launchd-stdout.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/leegonzales/.research-agent/logs/launchd-stderr.log</string>
+    <string>{{HOME}}/.research-agent/logs/launchd-stderr.log</string>
 
     <key>RunAtLoad</key>
     <false/>

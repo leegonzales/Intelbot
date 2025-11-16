@@ -32,11 +32,20 @@ class RelevanceScorer:
             'blog': 0.7,
         }
 
-        # High-value keywords
+        # High-value keywords (expanded for academic papers)
         self.high_value_keywords = {
+            # Practitioner/industry terms
             'multi-agent', 'agent', 'rlhf', 'alignment', 'prompt engineering',
             'tool use', 'autonomous', 'framework', 'production', 'benchmark',
-            'claude', 'gpt', 'llm', 'transformer', 'in-context', 'chain-of-thought'
+            'claude', 'gpt', 'llm', 'transformer', 'in-context', 'chain-of-thought',
+
+            # Academic equivalents
+            'reinforcement learning from human feedback', 'optimization',
+            'fine-tuning', 'pre-training', 'inference', 'reasoning',
+            'multimodal', 'vision-language', 'embedding', 'attention',
+            'neural network', 'deep learning', 'supervised learning',
+            'zero-shot', 'few-shot', 'transfer learning', 'generalization',
+            'instruction tuning', 'foundation model', 'language model'
         }
 
     def score(self, item: Dict) -> float:
@@ -80,6 +89,12 @@ class RelevanceScorer:
     def _source_score(self, item: Dict) -> float:
         """Score based on source tier."""
         metadata = item.get('source_metadata', {})
+        source = item.get('source', '').lower()
+
+        # PRIORITY FIX: arXiv papers get maximum tier score
+        # Academic papers are research foundation and should be prioritized
+        if 'arxiv' in source:
+            return 1.0
 
         # Check for explicit tier metadata first (new tiered system)
         if 'tier' in metadata:
@@ -147,8 +162,16 @@ class RelevanceScorer:
         # Calculate age in hours
         age_hours = (datetime.now() - published_date).total_seconds() / 3600
 
-        # Exponential decay: 1.0 for new, 0.5 at 24h, 0.25 at 48h
-        return math.exp(-age_hours / 24.0)
+        # ARXIV FIX: Academic papers have slower recency decay
+        # arXiv papers remain relevant longer than breaking news/blog posts
+        source = item.get('source', '').lower()
+        if 'arxiv' in source:
+            # Slower decay: 1.0 for new, 0.5 at 72h (3 days), 0.25 at 144h (6 days)
+            # This prevents 3-4 day old papers from being completely devalued
+            return math.exp(-age_hours / 72.0)
+        else:
+            # Standard decay: 1.0 for new, 0.5 at 24h, 0.25 at 48h
+            return math.exp(-age_hours / 24.0)
 
     def _novelty_score(self, item: Dict) -> float:
         """Score based on novelty (dissimilarity to historical items)."""

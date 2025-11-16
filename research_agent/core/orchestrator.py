@@ -105,7 +105,8 @@ class ResearchOrchestrator:
                 self.logger.info("Supplementing with recent items from last 7 days...")
 
                 # Get recent items from database to supplement
-                recent_items = self.state.get_recent_items(days=7, limit=20)
+                # Use larger limit (100) to ensure diversity across sources, especially arXiv papers
+                recent_items = self.state.get_recent_items(days=7, limit=100)
                 self.logger.info(f"Found {len(recent_items)} recent items from database")
 
                 # Combine new items with recent items (new items first)

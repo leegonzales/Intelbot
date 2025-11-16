@@ -146,7 +146,15 @@ class RelevanceScorer:
         published_date = item.get('published_date')
 
         if not published_date:
-            return 0.5
+            # MISSING DATE FIX: Try to extract date from title
+            # Many blog posts include date in title (e.g., "ArticleDec 19, 2024")
+            title = item.get('title', '')
+            extracted_date = self._extract_date_from_title(title)
+            if extracted_date:
+                published_date = extracted_date
+            else:
+                # No date available - return low score to avoid including old content
+                return 0.1
 
         # Parse date if string
         if isinstance(published_date, str):
@@ -184,3 +192,34 @@ class RelevanceScorer:
         # Penalize if very similar to existing items
         max_similarity = max(s['score'] for s in similar)
         return 1.0 - max_similarity
+
+    def _extract_date_from_title(self, title: str) -> str:
+        """
+        Extract date from title for blog posts that embed dates.
+
+        Example: "Building Effective AgentsDec 19, 2024" -> "2024-12-19"
+        """
+        import re
+        from dateutil import parser as date_parser
+
+        # Common patterns in Anthropic blog titles
+        # Pattern: "MonthName DD, YYYY" (e.g., "Dec 19, 2024")
+        month_day_year = re.search(r'([A-Z][a-z]{2,8})\s+(\d{1,2}),?\s+(\d{4})', title)
+        if month_day_year:
+            try:
+                date_str = f"{month_day_year.group(1)} {month_day_year.group(2)}, {month_day_year.group(3)}"
+                parsed = date_parser.parse(date_str)
+                return parsed.strftime('%Y-%m-%d')
+            except:
+                pass
+
+        # Fallback: try dateutil's fuzzy parsing
+        try:
+            parsed = date_parser.parse(title, fuzzy=True)
+            # Only return if year is reasonable (2020-2030)
+            if 2020 <= parsed.year <= 2030:
+                return parsed.strftime('%Y-%m-%d')
+        except:
+            pass
+
+        return None

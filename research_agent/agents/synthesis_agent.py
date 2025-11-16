@@ -20,7 +20,7 @@ class SynthesisAgent:
         # Initialize Anthropic client
         self.client = anthropic.Anthropic()
 
-    def synthesize(self, items: List[Dict], all_items: List[Dict] = None) -> str:
+    def synthesize(self, items: List[Dict], all_items: List[Dict] = None, new_items_count: int = None) -> str:
         """
         Generate digest markdown from items.
 
@@ -46,6 +46,11 @@ class SynthesisAgent:
         # Use all_items for comprehensive source stats if available
         source_stats, source_count = self._calculate_source_stats(all_items if all_items else items, len(items))
 
+        # Determine if we're using supplemental content
+        items_selected = len(items)
+        new_count = new_items_count if new_items_count is not None else items_selected
+        using_supplemental = new_count < items_selected
+
         # Construct synthesis prompt
         synthesis_prompt = f"""
 {system_prompt}
@@ -67,8 +72,12 @@ Include the full timestamp in the frontmatter and footer.
 Total unique sources: {source_count}
 Total items analyzed: {len(all_items) if all_items else len(items)}
 Items selected for digest: {len(items)}
+New items found: {new_count}
+{"Supplemental items from last 7 days: " + str(items_selected - new_count) if using_supplemental else ""}
 
 Use these numbers in the frontmatter and footer.
+
+{"**IMPORTANT**: Only " + str(new_count) + " new items were found today. The digest includes " + str(items_selected - new_count) + " recent items from the last 7 days to provide context. Add a note at the top of the TL;DR: 'Limited new content today (" + str(new_count) + " new items). Digest supplemented with recent highlights.'" if using_supplemental else ""}
 
 ---
 

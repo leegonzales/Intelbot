@@ -95,23 +95,26 @@ class ResearchOrchestrator:
             new_items = self.state.filter_new(items)
             self.logger.info(f"Found {len(new_items)} new items")
 
-            if len(new_items) < self.config.research.get('min_items', 3):
-                self.logger.warning(f"Only {len(new_items)} new items (minimum: {self.config.research.get('min_items', 3)})")
-                self.logger.warning("Skipping digest generation")
-                return ResearchResult(
-                    timestamp=start_time,
-                    status='partial',
-                    items_found=len(items),
-                    items_new=len(new_items),
-                    items_included=0,
-                    output_path=None,
-                    runtime_seconds=(datetime.now() - start_time).total_seconds(),
-                    error_log="Insufficient new items for digest"
-                )
+            # Always generate digest for monitoring purposes
+            # If few new items, supplement with recent items from database
+            min_items_target = self.config.research.get('min_items', 5)
+            items_to_rank = new_items
+
+            if len(new_items) < min_items_target:
+                self.logger.warning(f"Only {len(new_items)} new items (target: {min_items_target})")
+                self.logger.info("Supplementing with recent items from last 7 days...")
+
+                # Get recent items from database to supplement
+                recent_items = self.state.get_recent_items(days=7, limit=20)
+                self.logger.info(f"Found {len(recent_items)} recent items from database")
+
+                # Combine new items with recent items (new items first)
+                items_to_rank = new_items + recent_items
+                self.logger.info(f"Total items to rank: {len(items_to_rank)} ({len(new_items)} new + {len(recent_items)} recent)")
 
             # 3. Score and rank
             self.logger.info(f"[3/6] Scoring and ranking items...")
-            ranked_items = self._score_and_rank(new_items)
+            ranked_items = self._score_and_rank(items_to_rank)
 
             # 4. Select items with diversity constraints
             target_items = self.config.research.get('target_items', 10)
@@ -123,7 +126,11 @@ class ResearchOrchestrator:
 
             # 5. Synthesize digest using Claude
             self.logger.info(f"[5/6] Synthesizing digest...")
-            digest_content = self.synthesis_agent.synthesize(selected, all_items=items)
+            digest_content = self.synthesis_agent.synthesize(
+                selected,
+                all_items=items,
+                new_items_count=len(new_items)
+            )
 
             # 6. Write output
             output_path = None

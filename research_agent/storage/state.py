@@ -241,6 +241,62 @@ class StateManager:
 
         return new_items
 
+    def get_recent_items(self, days: int = 7, limit: int = 20) -> List[Dict]:
+        """
+        Get recent items from database to supplement digest when few new items.
+
+        Args:
+            days: Number of days to look back
+            limit: Maximum items to return
+
+        Returns:
+            List of recent items formatted like collected items
+        """
+        with self._get_conn() as conn:
+            cursor = conn.execute("""
+                SELECT
+                    url, title, snippet, content, source, source_metadata,
+                    author, published_date, category, tags
+                FROM seen_items
+                WHERE datetime(first_seen) >= datetime('now', '-' || ? || ' days')
+                ORDER BY first_seen DESC
+                LIMIT ?
+            """, (days, limit))
+
+            items = []
+            for row in cursor.fetchall():
+                # Parse source_metadata JSON
+                metadata = {}
+                if row['source_metadata']:
+                    try:
+                        metadata = json.loads(row['source_metadata'])
+                    except:
+                        pass
+
+                # Parse tags
+                tags = []
+                if row['tags']:
+                    try:
+                        tags = json.loads(row['tags'])
+                    except:
+                        tags = row['tags'].split(',') if row['tags'] else []
+
+                item = {
+                    'url': row['url'],
+                    'title': row['title'],
+                    'snippet': row['snippet'],
+                    'content': row['content'],
+                    'source': row['source'],
+                    'source_metadata': metadata,
+                    'author': row['author'],
+                    'published_date': row['published_date'],
+                    'category': row['category'],
+                    'tags': tags
+                }
+                items.append(item)
+
+            return items
+
     def record_run(
         self,
         items_found: List[Dict],

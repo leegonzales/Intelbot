@@ -35,10 +35,11 @@ class SynthesisAgent:
         system_prompt = self.prompts.get_system_prompt()
         synthesis_template = self.prompts.get_synthesis_template()
 
-        # Get current date for digest header
+        # Get current date and timestamp for digest header
         now = datetime.now()
         date_iso = now.strftime("%Y-%m-%d")
         date_full = now.strftime("%A, %B %d, %Y")
+        timestamp_full = now.strftime("%Y-%m-%d %H:%M:%S %Z")
 
         # Build context from items
         items_context = self._format_items_context(items)
@@ -51,11 +52,13 @@ class SynthesisAgent:
 
 ---
 
-## Current Date
+## Current Date and Timestamp
 
 Today is {date_full} ({date_iso})
+Full timestamp: {timestamp_full}
 
 Use this date in the digest header. Do NOT use any other date.
+Include the full timestamp in the frontmatter and footer.
 
 ---
 
@@ -235,14 +238,17 @@ Begin synthesis now.
         """
         from datetime import datetime
 
+        now = datetime.now()
+
         lines = [
             "---",
-            f"date: {datetime.now().strftime('%Y-%m-%d')}",
+            f"date: {now.strftime('%Y-%m-%d')}",
+            f"timestamp: {now.strftime('%Y-%m-%d %H:%M:%S %Z')}",
             "type: research-digest",
             "tags: [research, ai, daily-digest]",
             "---",
             "",
-            f"# AI Research Digest - {datetime.now().strftime('%A, %B %d, %Y')}",
+            f"# AI Research Digest - {now.strftime('%A, %B %d, %Y')}",
             "",
             "## Items",
             ""

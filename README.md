@@ -3,7 +3,7 @@
 Autonomous AI research tracking with preference learning.
 
 **Version**: 1.0.0
-**Status**: 🟡 Testing Phase (Critical fixes complete)
+**Status**: 🟢 Production Ready (Quality control validated)
 
 > **For Developers**: See [CLAUDE.md](CLAUDE.md) for complete project context, architecture, and development history.
 >
@@ -19,9 +19,11 @@ Research Agent is an automated daily digest system for AI research developments.
 - **Multi-Source Collection**: arXiv papers, Hacker News, RSS feeds, blogs
 - **Intelligent Deduplication**: URL, content hash, and FTS5-based similarity
 - **Relevance Scoring**: Multi-signal ranking (keywords, source tier, engagement, recency, novelty)
+- **Quality Control Validation**: Pre-synthesis validation with automated quality checks
 - **Claude-Powered Synthesis**: AI-generated digest with thematic grouping
 - **Obsidian Integration**: Markdown output with proper frontmatter and tags
 - **State Tracking**: SQLite database with full-text search (FTS5)
+- **Date Accuracy**: Strict 30-day freshness filtering to prevent stale content
 - **Preference Learning**: Track engagement to improve relevance over time (Phase 2)
 
 ## Installation

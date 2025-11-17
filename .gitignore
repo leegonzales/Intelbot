@@ -74,6 +74,9 @@ output/
 /DIGEST_*.md
 /SCHEDULING.md
 /SESSION_*.md
+/BUG_REPORT.md
+/TASK_LIST.md
+/VALIDATION_SUMMARY.md
 
 # macOS
 .DS_Store

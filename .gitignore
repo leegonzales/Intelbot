@@ -65,10 +65,15 @@ state.db
 digests/
 output/
 
-# Temporary assessment files
-*_ASSESSMENT.md
-*_IMPLEMENTED.md
-GITIGNORE_ASSESSMENT.md
+# Session-specific analysis and working files (root directory only)
+/*_ASSESSMENT.md
+/*_IMPLEMENTED.md
+/*_ANALYSIS.md
+/*_IMPROVEMENTS.md
+/ARXIV_*.md
+/DIGEST_*.md
+/SCHEDULING.md
+/SESSION_*.md
 
 # macOS
 .DS_Store

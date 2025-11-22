@@ -460,3 +460,275 @@ class StateManager:
             pass
 
         return None
+
+    # ============================================
+    # AUTHOR PERFORMANCE TRACKING
+    # ============================================
+
+    def record_author_inclusion(
+        self,
+        author_name: str,
+        item_id: int,
+        included: bool,
+        published_date: Optional[datetime] = None
+    ):
+        """
+        Record an author appearance and update performance metrics.
+
+        Args:
+            author_name: Normalized author name
+            item_id: Item ID from seen_items
+            included: Whether item was included in digest
+            published_date: Publication date for recency scoring
+        """
+        from research_agent.utils.authors import normalize_author_name
+
+        # Normalize the author name
+        author_name = normalize_author_name(author_name)
+
+        with self._get_conn() as conn:
+            # Check if author exists
+            cursor = conn.execute(
+                "SELECT total_papers, included_papers FROM author_performance WHERE author_name = ?",
+                (author_name,)
+            )
+            row = cursor.fetchone()
+
+            if row:
+                # Update existing author
+                total = row['total_papers'] + 1
+                included_count = row['included_papers'] + (1 if included else 0)
+                inclusion_rate = included_count / total if total > 0 else 0.0
+
+                if included:
+                    conn.execute("""
+                        UPDATE author_performance
+                        SET total_papers = ?,
+                            included_papers = ?,
+                            inclusion_rate = ?,
+                            last_seen = CURRENT_TIMESTAMP,
+                            last_included = CURRENT_TIMESTAMP
+                        WHERE author_name = ?
+                    """, (total, included_count, inclusion_rate, author_name))
+                else:
+                    conn.execute("""
+                        UPDATE author_performance
+                        SET total_papers = ?,
+                            included_papers = ?,
+                            inclusion_rate = ?,
+                            last_seen = CURRENT_TIMESTAMP
+                        WHERE author_name = ?
+                    """, (total, included_count, inclusion_rate, author_name))
+            else:
+                # Insert new author
+                inclusion_rate = 1.0 if included else 0.0
+                last_included = datetime.now() if included else None
+
+                conn.execute("""
+                    INSERT INTO author_performance (
+                        author_name, total_papers, included_papers,
+                        inclusion_rate, last_included
+                    ) VALUES (?, ?, ?, ?, ?)
+                """, (
+                    author_name,
+                    1,
+                    1 if included else 0,
+                    inclusion_rate,
+                    last_included
+                ))
+
+    def update_author_scores(self):
+        """
+        Update recency and velocity scores for all authors.
+
+        Should be called periodically (e.g., after each research run).
+        """
+        import math
+
+        with self._get_conn() as conn:
+            # Get all authors
+            cursor = conn.execute("""
+                SELECT author_name, last_included, first_seen, last_seen, total_papers
+                FROM author_performance
+            """)
+
+            now = datetime.now()
+
+            for row in cursor:
+                author_name = row['author_name']
+                last_included = row['last_included']
+                first_seen = datetime.fromisoformat(row['first_seen']) if row['first_seen'] else now
+                last_seen = datetime.fromisoformat(row['last_seen']) if row['last_seen'] else now
+                total_papers = row['total_papers']
+
+                # Calculate recency score (exponential decay)
+                # 1.0 at t=0, 0.5 at t=90 days, 0.1 at t=180 days
+                if last_included:
+                    last_included_dt = datetime.fromisoformat(last_included)
+                    days_since_inclusion = (now - last_included_dt).days
+                    recency_score = math.exp(-days_since_inclusion / 90.0)
+                else:
+                    recency_score = 0.0
+
+                # Calculate velocity (papers per month)
+                days_active = max((last_seen - first_seen).days, 1)
+                months_active = days_active / 30.0
+                velocity = total_papers / months_active if months_active > 0 else 0.0
+
+                # Update scores
+                conn.execute("""
+                    UPDATE author_performance
+                    SET recency_score = ?,
+                        recent_velocity = ?
+                    WHERE author_name = ?
+                """, (recency_score, velocity, author_name))
+
+    def get_top_authors(
+        self,
+        limit: int = 20,
+        min_inclusion_rate: float = 0.3,
+        min_papers: int = 2
+    ) -> List[str]:
+        """
+        Get top-performing authors for enhanced arXiv queries.
+
+        Scoring formula: 0.5 * inclusion_rate + 0.3 * recency_score + 0.2 * velocity
+
+        Args:
+            limit: Max number of authors to return
+            min_inclusion_rate: Minimum inclusion rate (0.0-1.0)
+            min_papers: Minimum number of papers
+
+        Returns:
+            List of author names, sorted by composite score
+        """
+        with self._get_conn() as conn:
+            cursor = conn.execute("""
+                SELECT
+                    author_name,
+                    inclusion_rate,
+                    recency_score,
+                    recent_velocity,
+                    (0.5 * inclusion_rate + 0.3 * recency_score + 0.2 * LEAST(recent_velocity, 1.0)) as composite_score
+                FROM author_performance
+                WHERE inclusion_rate >= ?
+                  AND total_papers >= ?
+                ORDER BY composite_score DESC
+                LIMIT ?
+            """, (min_inclusion_rate, min_papers, limit))
+
+            return [row['author_name'] for row in cursor]
+
+    def get_author_stats(self, author_name: str) -> Optional[Dict]:
+        """
+        Get detailed statistics for an author.
+
+        Args:
+            author_name: Author name
+
+        Returns:
+            Dict with author stats or None if not found
+        """
+        from research_agent.utils.authors import normalize_author_name
+
+        author_name = normalize_author_name(author_name)
+
+        with self._get_conn() as conn:
+            cursor = conn.execute("""
+                SELECT *
+                FROM author_performance
+                WHERE author_name = ?
+            """, (author_name,))
+
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def seed_authors_from_existing_items(self):
+        """
+        Seed author_performance table from existing seen_items.
+
+        This is called during migration or when enabling author tracking
+        for the first time to bootstrap from historical data.
+        """
+        from research_agent.utils.authors import parse_author_string
+
+        self.logger.info("Seeding author performance from existing items...")
+
+        with self._get_conn() as conn:
+            # Get all arXiv items with authors
+            cursor = conn.execute("""
+                SELECT id, author, included_in_digest, published_date
+                FROM seen_items
+                WHERE source = 'arxiv'
+                  AND author IS NOT NULL
+                  AND author != ''
+            """)
+
+            items = cursor.fetchall()
+            self.logger.info(f"Found {len(items)} arXiv items to process")
+
+            author_counts = {}  # author_name -> {total, included, dates}
+
+            # First pass: collect all author data
+            for item in items:
+                authors = parse_author_string(item['author'])
+                included = bool(item['included_in_digest'])
+                pub_date = item['published_date']
+
+                for author in authors:
+                    if author not in author_counts:
+                        author_counts[author] = {
+                            'total': 0,
+                            'included': 0,
+                            'dates': []
+                        }
+
+                    author_counts[author]['total'] += 1
+                    if included:
+                        author_counts[author]['included'] += 1
+                    if pub_date:
+                        author_counts[author]['dates'].append(pub_date)
+
+            # Second pass: insert/update author records
+            for author_name, stats in author_counts.items():
+                total = stats['total']
+                included = stats['included']
+                inclusion_rate = included / total if total > 0 else 0.0
+
+                # Get most recent date where this author was included
+                if stats['dates']:
+                    last_pub = max(stats['dates'])
+                else:
+                    last_pub = None
+
+                # Check if author already exists
+                cursor = conn.execute(
+                    "SELECT author_name FROM author_performance WHERE author_name = ?",
+                    (author_name,)
+                )
+
+                if cursor.fetchone():
+                    # Update existing
+                    conn.execute("""
+                        UPDATE author_performance
+                        SET total_papers = total_papers + ?,
+                            included_papers = included_papers + ?,
+                            inclusion_rate = (included_papers + ?) / (total_papers + ?),
+                            last_seen = CURRENT_TIMESTAMP
+                        WHERE author_name = ?
+                    """, (total, included, included, total, author_name))
+                else:
+                    # Insert new
+                    conn.execute("""
+                        INSERT INTO author_performance (
+                            author_name, total_papers, included_papers,
+                            inclusion_rate, last_included
+                        ) VALUES (?, ?, ?, ?, ?)
+                    """, (author_name, total, included, inclusion_rate, last_pub))
+
+            self.logger.info(f"Seeded {len(author_counts)} authors")
+
+            # Update all scores
+            self.update_author_scores()
+
+            self.logger.info("Author seeding complete")

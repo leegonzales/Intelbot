@@ -153,6 +153,25 @@ class Config:
                     'enabled': True,
                     'categories': ['cs.AI', 'cs.LG', 'cs.CL', 'cs.HC'],
                     'max_results': 20,
+                    'lookback_days': 7,
+                    # Author tracking (adaptive learning)
+                    'author_tracking_enabled': True,
+                    'max_tracked_authors': 20,
+                    'min_author_inclusion_rate': 0.3,
+                    'min_author_papers': 2,
+                    'max_papers_per_author': 5,
+                    # Keyword search
+                    'keyword_search_enabled': False,  # Disabled by default
+                    'search_keywords': [
+                        'constitutional AI',
+                        'RLHF',
+                        'prompt engineering',
+                        'tool use',
+                        'retrieval augmented',
+                        'agentic',
+                        'alignment'
+                    ],
+                    'max_results_per_keyword': 5,
                 },
                 'hackernews': {
                     'enabled': True,

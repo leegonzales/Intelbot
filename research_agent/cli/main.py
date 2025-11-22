@@ -244,5 +244,115 @@ def search(query, limit):
         sys.exit(1)
 
 
+@cli.group()
+def authors():
+    """Manage author tracking and performance."""
+    pass
+
+
+@authors.command()
+def seed():
+    """Seed author performance from existing database items."""
+    try:
+        config_obj = Config.load_default()
+        data_dir = Path(config_obj.paths.data_dir).expanduser()
+
+        # Initialize logging
+        log_dir = Path(config_obj.paths.logs_dir).expanduser()
+        setup_logger(
+            name="research_agent",
+            log_dir=log_dir,
+            verbose=True
+        )
+
+        state = StateManager(data_dir / "state.db")
+
+        click.echo("Seeding author performance from existing database...")
+        state.seed_authors_from_existing_items()
+        click.secho("✓ Author seeding complete", fg='green')
+
+    except Exception as e:
+        click.secho(f"Error seeding authors: {e}", fg='red', err=True)
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+@authors.command()
+@click.option('--limit', type=int, default=20, help='Number of authors to show')
+@click.option('--min-rate', type=float, default=0.0, help='Minimum inclusion rate (0.0-1.0)')
+def top(limit, min_rate):
+    """Show top-performing authors."""
+    try:
+        config_obj = Config.load_default()
+        data_dir = Path(config_obj.paths.data_dir).expanduser()
+        state = StateManager(data_dir / "state.db")
+
+        top_authors = state.get_top_authors(
+            limit=limit,
+            min_inclusion_rate=min_rate,
+            min_papers=1
+        )
+
+        if not top_authors:
+            click.echo("No authors found")
+            return
+
+        click.echo()
+        click.echo(f"Top {len(top_authors)} authors:")
+        click.echo("=" * 80)
+
+        for author_name in top_authors:
+            stats = state.get_author_stats(author_name)
+            if stats:
+                inclusion_pct = stats['inclusion_rate'] * 100
+                click.secho(f"\n{author_name}", fg='blue', bold=True)
+                click.echo(f"  Papers: {stats['total_papers']} total, {stats['included_papers']} included ({inclusion_pct:.1f}%)")
+                click.echo(f"  Recency score: {stats['recency_score']:.3f}")
+                click.echo(f"  Velocity: {stats['recent_velocity']:.2f} papers/month")
+                if stats['last_included']:
+                    click.echo(f"  Last included: {stats['last_included']}")
+
+        click.echo()
+
+    except Exception as e:
+        click.secho(f"Error fetching top authors: {e}", fg='red', err=True)
+        sys.exit(1)
+
+
+@authors.command()
+@click.argument('author_name')
+def stats(author_name):
+    """Show detailed stats for a specific author."""
+    try:
+        config_obj = Config.load_default()
+        data_dir = Path(config_obj.paths.data_dir).expanduser()
+        state = StateManager(data_dir / "state.db")
+
+        author_stats = state.get_author_stats(author_name)
+
+        if not author_stats:
+            click.secho(f"No data found for author: {author_name}", fg='yellow')
+            return
+
+        click.echo()
+        click.secho(f"Author: {author_stats['author_name']}", fg='blue', bold=True)
+        click.echo("=" * 80)
+        click.echo(f"  Total papers:      {author_stats['total_papers']}")
+        click.echo(f"  Included papers:   {author_stats['included_papers']}")
+        click.echo(f"  Inclusion rate:    {author_stats['inclusion_rate'] * 100:.1f}%")
+        click.echo(f"  Recency score:     {author_stats['recency_score']:.3f}")
+        click.echo(f"  Velocity:          {author_stats['recent_velocity']:.2f} papers/month")
+        click.echo(f"  First seen:        {author_stats['first_seen']}")
+        click.echo(f"  Last seen:         {author_stats['last_seen']}")
+        if author_stats['last_included']:
+            click.echo(f"  Last included:     {author_stats['last_included']}")
+        click.echo()
+
+    except Exception as e:
+        click.secho(f"Error fetching author stats: {e}", fg='red', err=True)
+        sys.exit(1)
+
+
 if __name__ == '__main__':
     cli()

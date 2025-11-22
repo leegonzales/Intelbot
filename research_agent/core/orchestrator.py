@@ -165,6 +165,11 @@ class ResearchOrchestrator:
                     output_path,
                     runtime
                 )
+
+                # Track author performance (adaptive learning)
+                self.logger.info("Updating author performance metrics...")
+                self._update_author_metrics(all_items=items, included_items=selected)
+                self.logger.info("Author metrics updated")
             else:
                 self.logger.info("[DRY RUN] Skipping file write and database update")
 
@@ -463,3 +468,56 @@ class ResearchOrchestrator:
             'warnings': warnings,
             'metrics': metrics
         }
+
+    def _update_author_metrics(self, all_items: List[Dict], included_items: List[Dict]):
+        """
+        Update author performance metrics based on digest results.
+
+        For each arXiv paper collected:
+        - Record the author
+        - Track whether it was included in digest
+        - Update author performance scores
+
+        This enables adaptive learning for future searches.
+
+        Args:
+            all_items: All items collected (for tracking all authors seen)
+            included_items: Items included in digest (for tracking successful authors)
+        """
+        from research_agent.utils.authors import parse_author_string
+
+        # Create a set of included item IDs for fast lookup
+        included_urls = {item['url'] for item in included_items}
+
+        # Track all arXiv items
+        for item in all_items:
+            if item.get('source') != 'arxiv':
+                continue
+
+            author_string = item.get('author')
+            if not author_string:
+                continue
+
+            # Parse author string into individual authors
+            authors = parse_author_string(author_string)
+
+            # Record each author
+            was_included = item['url'] in included_urls
+            pub_date = item.get('published_date')
+
+            for author_name in authors:
+                try:
+                    self.state.record_author_inclusion(
+                        author_name=author_name,
+                        item_id=item.get('id', 0),  # May not have ID if not in DB yet
+                        included=was_included,
+                        published_date=pub_date
+                    )
+                except Exception as e:
+                    self.logger.debug(f"Error recording author '{author_name}': {e}")
+
+        # Update all author scores (recency, velocity)
+        try:
+            self.state.update_author_scores()
+        except Exception as e:
+            self.logger.error(f"Error updating author scores: {e}")

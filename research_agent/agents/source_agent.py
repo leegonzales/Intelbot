@@ -33,7 +33,7 @@ class SourceAgent:
 
         # arXiv
         if hasattr(sources_config, 'arxiv') and sources_config.arxiv.get('enabled', False):
-            self.sources.append(ArxivSource(sources_config.arxiv))
+            self.sources.append(ArxivSource(sources_config.arxiv, state_manager=self.state))
 
         # Hacker News
         if hasattr(sources_config, 'hackernews') and sources_config.hackernews.get('enabled', False):

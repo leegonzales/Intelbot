@@ -392,10 +392,10 @@ class ResearchOrchestrator:
             except Exception as e:
                 self.logger.debug(f"Date parsing error for {item['title'][:30]}: {e}")
 
-        # Critical error if stale content found
+        # Warning if stale content found (not blocking - still generate digest)
         if stale_items:
             for stale in stale_items:
-                errors.append(f"Stale content ({stale['age_days']}d old): {stale['title']}")
+                warnings.append(f"Stale content ({stale['age_days']}d old): {stale['title']}")
 
         # Warning if many missing dates
         if len(missing_dates) > 3:

@@ -143,11 +143,16 @@ class ResearchOrchestrator:
 
             # 5. Synthesize digest using Claude
             self.logger.info(f"[5/6] Synthesizing digest...")
+
+            # Get database statistics for digest header
+            db_stats = self.state.get_database_stats()
+
             digest_content = self.synthesis_agent.synthesize(
                 selected,
                 all_items=items,
                 new_items_count=len(new_items),
-                validation_report=validation
+                validation_report=validation,
+                db_stats=db_stats
             )
 
             # 6. Write output

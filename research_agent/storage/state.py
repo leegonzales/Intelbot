@@ -460,3 +460,70 @@ class StateManager:
             pass
 
         return None
+
+    def get_database_stats(self) -> Dict:
+        """
+        Get comprehensive database statistics.
+
+        Returns:
+            Dict with database metrics including:
+            - total_items: Total items in database
+            - total_runs: Total completed runs
+            - oldest_item_date: Date of oldest item
+            - newest_item_date: Date of newest item
+            - items_last_7_days: Items collected in last 7 days
+            - items_last_30_days: Items collected in last 30 days
+            - top_sources: Most active sources (top 5)
+        """
+        with self._get_conn() as conn:
+            stats = {}
+
+            # Total items
+            cursor = conn.execute("SELECT COUNT(*) as count FROM seen_items")
+            stats['total_items'] = cursor.fetchone()['count']
+
+            # Total runs
+            cursor = conn.execute("SELECT COUNT(*) as count FROM research_runs")
+            stats['total_runs'] = cursor.fetchone()['count']
+
+            # Date range
+            cursor = conn.execute("""
+                SELECT
+                    MIN(published_date) as oldest,
+                    MAX(published_date) as newest
+                FROM seen_items
+                WHERE published_date IS NOT NULL
+            """)
+            row = cursor.fetchone()
+            stats['oldest_item_date'] = row['oldest']
+            stats['newest_item_date'] = row['newest']
+
+            # Recent items (last 7 and 30 days)
+            cursor = conn.execute("""
+                SELECT COUNT(*) as count
+                FROM seen_items
+                WHERE first_seen >= datetime('now', '-7 days')
+            """)
+            stats['items_last_7_days'] = cursor.fetchone()['count']
+
+            cursor = conn.execute("""
+                SELECT COUNT(*) as count
+                FROM seen_items
+                WHERE first_seen >= datetime('now', '-30 days')
+            """)
+            stats['items_last_30_days'] = cursor.fetchone()['count']
+
+            # Top sources
+            cursor = conn.execute("""
+                SELECT source, COUNT(*) as count
+                FROM seen_items
+                GROUP BY source
+                ORDER BY count DESC
+                LIMIT 5
+            """)
+            stats['top_sources'] = [
+                {'source': row['source'], 'count': row['count']}
+                for row in cursor.fetchall()
+            ]
+
+            return stats

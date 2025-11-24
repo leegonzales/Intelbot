@@ -20,7 +20,7 @@ class SynthesisAgent:
         # Initialize Anthropic client
         self.client = anthropic.Anthropic()
 
-    def synthesize(self, items: List[Dict], all_items: List[Dict] = None, new_items_count: int = None, validation_report: Dict = None) -> str:
+    def synthesize(self, items: List[Dict], all_items: List[Dict] = None, new_items_count: int = None, validation_report: Dict = None, db_stats: Dict = None) -> str:
         """
         Generate digest markdown from items.
 
@@ -29,6 +29,7 @@ class SynthesisAgent:
             all_items: All collected items (for comprehensive source stats)
             new_items_count: Number of new items found today
             validation_report: Quality validation results
+            db_stats: Database statistics
 
         Returns:
             Formatted markdown digest
@@ -55,6 +56,9 @@ class SynthesisAgent:
 
         # Format validation report for digest
         validation_block = self._format_validation_block(validation_report) if validation_report else ""
+
+        # Format DB stats for digest
+        db_stats_block = self._format_db_stats_block(db_stats) if db_stats else ""
 
         # Construct synthesis prompt
         synthesis_prompt = f"""
@@ -102,29 +106,36 @@ Generate today's research digest using the following items and the synthesis tem
 
 {synthesis_template}
 
-## Validation Report (INCLUDE AT VERY TOP)
+## Database Statistics (INCLUDE AT VERY TOP)
+
+{db_stats_block}
+
+## Validation Report (INCLUDE AFTER DB STATS)
 
 {validation_block}
 
-**CRITICAL**: Include this validation block immediately after the frontmatter (YAML block), BEFORE the title and TL;DR.
+**CRITICAL**: Include these blocks immediately after the frontmatter (YAML block), BEFORE the title and TL;DR.
 
 The structure should be:
 1. Frontmatter (---...---)
-2. Quality Control block (validation)
-3. Title (# AI Research Digest...)
-4. TL;DR
-5. Rest of digest
+2. Database Statistics section
+3. Quality Control block (validation)
+4. Title (# AI Research Digest...)
+5. TL;DR
+6. Rest of digest
 
 ## Instructions
 
-1. **FIRST**: Include the Validation Report block right after frontmatter, BEFORE title
-2. Group items by theme (agent architectures, prompt engineering, etc.)
-3. Write concise, precise descriptions (max 3 sentences per item)
-4. Include "why this matters" for each item
-5. Generate TL;DR summarizing key developments
-6. Note any signals/trends
-7. Follow template structure exactly
-8. **IMPORTANT**: Use the Source Statistics above to populate the "📡 Sources Polled" footer section
+1. **FIRST**: Include the Database Statistics block right after frontmatter
+2. **SECOND**: Include the Quality Control block after DB stats
+3. **THIRD**: Add the title and TL;DR
+4. Group items by theme (agent architectures, prompt engineering, etc.)
+5. Write concise, precise descriptions (max 3 sentences per item)
+6. Include "why this matters" for each item
+7. Generate TL;DR summarizing key developments
+8. Note any signals/trends
+9. Follow template structure exactly
+10. **IMPORTANT**: Use the Source Statistics above to populate the "📡 Sources Polled" footer section
 
 ## DATE ACCURACY REQUIREMENTS (CRITICAL)
 
@@ -363,6 +374,56 @@ Begin synthesis now.
             lines.append("**⚠️ WARNINGS:**")
             for warning in warnings:
                 lines.append(f"- {warning}")
+            lines.append("")
+
+        return "\n".join(lines)
+
+    def _format_db_stats_block(self, db_stats: Dict) -> str:
+        """
+        Format database statistics for inclusion in digest.
+
+        Creates a compact, informative block showing database state.
+        """
+        if not db_stats:
+            return ""
+
+        lines = [
+            "---",
+            "",
+            "## 📊 Research Database Stats",
+            ""
+        ]
+
+        # Total items and runs
+        lines.append(f"**Database Overview:**")
+        lines.append(f"- Total Items Tracked: {db_stats.get('total_items', 0):,}")
+        lines.append(f"- Total Research Runs: {db_stats.get('total_runs', 0):,}")
+
+        # Recent activity
+        lines.append(f"- Items Added (Last 7 Days): {db_stats.get('items_last_7_days', 0):,}")
+        lines.append(f"- Items Added (Last 30 Days): {db_stats.get('items_last_30_days', 0):,}")
+
+        # Date range
+        oldest = db_stats.get('oldest_item_date')
+        newest = db_stats.get('newest_item_date')
+        if oldest and newest:
+            from datetime import datetime
+            try:
+                oldest_dt = datetime.fromisoformat(oldest.replace('Z', '+00:00'))
+                newest_dt = datetime.fromisoformat(newest.replace('Z', '+00:00'))
+                lines.append(f"- Content Date Range: {oldest_dt.strftime('%Y-%m-%d')} to {newest_dt.strftime('%Y-%m-%d')}")
+            except:
+                lines.append(f"- Content Date Range: {oldest} to {newest}")
+
+        lines.append("")
+
+        # Top sources
+        top_sources = db_stats.get('top_sources', [])
+        if top_sources:
+            lines.append("**Top Sources (All Time):**")
+            for src in top_sources:
+                source_name = src['source'].replace('rss:', '').replace('blog:', '').replace('arxiv:', '').strip()
+                lines.append(f"- {source_name}: {src['count']:,} items")
             lines.append("")
 
         return "\n".join(lines)

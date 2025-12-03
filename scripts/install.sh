@@ -38,9 +38,11 @@ mkdir -p ~/.research-agent/{prompts,logs}
 echo "✓ Created ~/.research-agent/"
 echo
 
-# Copy default prompts
+# Copy default prompts (rename .example.md to .md)
 echo "Installing default prompts..."
-cp prompts/*.md ~/.research-agent/prompts/
+cp prompts/system.example.md ~/.research-agent/prompts/system.md
+cp prompts/synthesis.example.md ~/.research-agent/prompts/synthesis.md
+cp prompts/sources.example.md ~/.research-agent/prompts/sources.md
 
 echo "✓ Prompts installed"
 echo

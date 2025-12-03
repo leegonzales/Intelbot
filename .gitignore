@@ -78,6 +78,10 @@ output/
 /TASK_LIST.md
 /VALIDATION_SUMMARY.md
 
+# Internal development tracking (not for public consumption)
+/CLAUDE.md
+/docs/project-state/
+
 # macOS
 .DS_Store
 .AppleDouble

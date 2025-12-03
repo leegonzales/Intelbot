@@ -5,9 +5,6 @@ Autonomous AI research tracking with preference learning.
 **Version**: 1.0.0
 **Status**: 🟢 Production Ready (Quality control validated)
 
-> **For Developers**: See [CLAUDE.md](CLAUDE.md) for complete project context, architecture, and development history.
->
-> **Project State**: [docs/project-state/README.md](docs/project-state/README.md) | **Issues**: [docs/project-state/issues/INDEX.md](docs/project-state/issues/INDEX.md)
 
 ## Overview
 
@@ -31,17 +28,22 @@ Research Agent is an automated daily digest system for AI research developments.
 ### Requirements
 
 - Python 3.10+
-- macOS (for launchd scheduling)
+- [Poetry](https://python-poetry.org/) (recommended) or pip
+- macOS (for launchd scheduling; Linux/Windows can run manually)
 - Anthropic API key
 
 ### Quick Start
 
 ```bash
 # Clone the repository
-git clone https://github.com/leegonzales/research-agent.git
-cd research-agent
+git clone https://github.com/leegonzales/Intelbot.git
+cd Intelbot
 
-# Run installation script
+# Install with Poetry (recommended)
+poetry install
+poetry shell
+
+# Or run installation script (uses pip)
 bash scripts/install.sh
 
 # Add your API key
@@ -50,42 +52,39 @@ echo "ANTHROPIC_API_KEY=your-key-here" > ~/.research-agent/.env
 # Test the system
 research-agent run --dry-run
 
-# Enable daily scheduling
+# Enable daily scheduling (macOS only)
 research-agent schedule install
 ```
 
 ### Manual Installation
 
 ```bash
-# Install package
-pip install -e .
+# 1. Clone the repository
+git clone https://github.com/leegonzales/Intelbot.git
+cd Intelbot
 
-# Create config directory
+# 2. Install with Poetry (recommended) or pip
+poetry install
+# OR: pip install -e .
+
+# 3. Create config directory
 mkdir -p ~/.research-agent/{prompts,logs}
 
-# Copy configuration examples
-cp .env.example .env
-cp config.yaml.example config.yaml
-
-# Edit configuration files with your settings
-# 1. Add your Anthropic API key to .env
-echo "ANTHROPIC_API_KEY=your-key-here" > .env
-
-# 2. Update config.yaml with your paths (Obsidian vault location, etc.)
-nano config.yaml  # or use your preferred editor
-
-# Copy and customize prompts
+# 4. Copy and customize prompts
 cp prompts/system.example.md ~/.research-agent/prompts/system.md
 cp prompts/synthesis.example.md ~/.research-agent/prompts/synthesis.md
 cp prompts/sources.example.md ~/.research-agent/prompts/sources.md
 
-# Edit prompts to customize for your use case
+# 5. Edit prompts to customize for your use case
 # Replace placeholders like {{USER_NAME}}, {{USER_COMPANY}}, etc.
 nano ~/.research-agent/prompts/system.md
-nano ~/.research-agent/prompts/synthesis.md
 
-# Note: The schedule.sh script will automatically generate the
-# launchd plist from the template when you run './schedule.sh install'
+# 6. Copy and edit configuration
+cp config.yaml.example ~/.research-agent/config.yaml
+nano ~/.research-agent/config.yaml  # Update paths (Obsidian vault, etc.)
+
+# 7. Add your Anthropic API key
+echo "ANTHROPIC_API_KEY=your-key-here" > ~/.research-agent/.env
 ```
 
 ### Customizing Prompts
@@ -269,18 +268,13 @@ research-agent config path
 
 ## Development
 
-### Current Development Status
-
-**Sprint 001**: ✅ Complete - All critical bugs fixed ([details](docs/project-state/sprints/SPRINT_001.md))
-**Sprint 002**: 🔄 In Progress - Comprehensive testing ([plan](docs/project-state/sprints/SPRINT_002_PLAN.md))
-
 ### Running Tests
 
 ```bash
 # Install dev dependencies
 poetry install
 
-# Run tests (Sprint 002 in progress)
+# Run tests
 poetry run pytest
 
 # Run with coverage
@@ -291,10 +285,6 @@ poetry run pytest tests/unit/              # Unit tests only
 poetry run pytest tests/integration/       # Integration tests only
 poetry run pytest -v                       # Verbose output
 ```
-
-**Current Coverage**: ~10% (target: >80% by end of Sprint 002)
-
-**Test Plan**: See [Sprint 002 Plan](docs/project-state/sprints/SPRINT_002_PLAN.md) for comprehensive testing strategy
 
 ### Code Quality
 

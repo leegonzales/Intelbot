@@ -28,12 +28,17 @@ class SourceAgent:
         from research_agent.sources.hackernews import HackerNewsSource
         from research_agent.sources.rss import RSSSource
         from research_agent.sources.blog_scraper import BlogScraperSource
+        from research_agent.sources.semantic_scholar import SemanticScholarSource
 
         sources_config = self.config.sources
 
         # arXiv
         if hasattr(sources_config, 'arxiv') and sources_config.arxiv.get('enabled', False):
             self.sources.append(ArxivSource(sources_config.arxiv))
+
+        # Semantic Scholar (high-impact papers with citation data)
+        if hasattr(sources_config, 'semantic_scholar') and sources_config.semantic_scholar.get('enabled', False):
+            self.sources.append(SemanticScholarSource(sources_config.semantic_scholar))
 
         # Hacker News
         if hasattr(sources_config, 'hackernews') and sources_config.hackernews.get('enabled', False):

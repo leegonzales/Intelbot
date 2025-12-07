@@ -122,9 +122,9 @@ class Config:
                 },
             },
             'research': {
-                'target_items': 10,
+                'target_items': 12,
                 'min_items': 3,
-                'max_items': 15,
+                'max_items': 18,
                 'lookback_hours': 24,
                 'dedup': {
                     'exact_url': True,
@@ -151,8 +151,34 @@ class Config:
             'sources': {
                 'arxiv': {
                     'enabled': True,
-                    'categories': ['cs.AI', 'cs.LG', 'cs.CL', 'cs.HC'],
-                    'max_results': 20,
+                    'categories': [
+                        'cs.AI',   # Artificial Intelligence
+                        'cs.LG',   # Machine Learning
+                        'cs.CL',   # Computation and Language
+                        'cs.HC',   # Human-Computer Interaction
+                        'stat.ML', # Machine Learning (Statistics)
+                        'cs.CV',   # Computer Vision
+                        'cs.NE',   # Neural and Evolutionary Computing
+                        'cs.MA',   # Multiagent Systems
+                        'cs.IR',   # Information Retrieval
+                    ],
+                    'max_results': 50,
+                    'days_lookback': 14,
+                },
+                'semantic_scholar': {
+                    'enabled': True,
+                    'max_results': 30,
+                    'min_citations': 3,
+                    'days_lookback': 30,
+                    'queries': [
+                        'large language model',
+                        'transformer neural network',
+                        'reinforcement learning human feedback',
+                        'multimodal AI',
+                        'AI agents autonomous',
+                        'prompt engineering LLM',
+                        'neural network reasoning',
+                    ],
                 },
                 'hackernews': {
                     'enabled': True,

@@ -242,11 +242,11 @@ class ResearchOrchestrator:
         tier_counts = defaultdict(int)
         arxiv_count = 0
 
-        # Diversity constraints
+        # Diversity constraints (tuned for better academic paper coverage)
         MIN_TIER_1 = 3  # At least 3 Tier 1 (primary sources)
-        MIN_TIER_2 = 5  # At least 5 Tier 2 (strategic thinkers - HIGHEST VALUE)
+        MIN_TIER_2 = 3  # At least 3 Tier 2 (strategic thinkers) - reduced to make room for papers
         MIN_TIER_5 = 1  # At least 1 Tier 5 (implementation)
-        MIN_ARXIV = 2   # At least 2 arXiv papers
+        MIN_ARXIV = 4   # At least 4 arXiv papers - INCREASED for better academic coverage
         MAX_PER_SOURCE = 3  # No more than 3 from any single source
 
         # First pass: Ensure minimums are met
@@ -261,8 +261,12 @@ class ResearchOrchestrator:
                 source_counts[source] += 1
                 tier_counts[2] += 1
 
-        # 2. Get arXiv papers
-        arxiv_items = [item for item in ranked_items if 'arxiv' in item.get('source', '').lower()]
+        # 2. Get academic papers (arXiv + Semantic Scholar)
+        academic_sources = ['arxiv', 'semantic_scholar']
+        arxiv_items = [
+            item for item in ranked_items
+            if any(src in item.get('source', '').lower() for src in academic_sources)
+        ]
         for item in arxiv_items[:MIN_ARXIV]:
             source = self._get_source_name(item)
             if source_counts[source] < MAX_PER_SOURCE and item not in selected:
@@ -415,12 +419,16 @@ class ResearchOrchestrator:
             metrics['oldest_item_days'] = None
             metrics['avg_item_age_days'] = None
 
-        # 2. Check arXiv representation
-        arxiv_count = sum(1 for item in selected if 'arxiv' in item.get('source', '').lower())
+        # 2. Check academic paper representation (arXiv + Semantic Scholar)
+        academic_sources = ['arxiv', 'semantic_scholar']
+        arxiv_count = sum(
+            1 for item in selected
+            if any(src in item.get('source', '').lower() for src in academic_sources)
+        )
         metrics['arxiv_count'] = arxiv_count
 
-        if arxiv_count < 2:
-            warnings.append(f"Low arXiv representation: {arxiv_count} papers (target: 2-3)")
+        if arxiv_count < 4:
+            warnings.append(f"Low academic paper representation: {arxiv_count} papers (target: 4+)")
 
         # 3. Check source diversity
         sources = [self._get_source_name(item) for item in selected]

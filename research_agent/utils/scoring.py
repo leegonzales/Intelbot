@@ -45,7 +45,26 @@ class RelevanceScorer:
             'multimodal', 'vision-language', 'embedding', 'attention',
             'neural network', 'deep learning', 'supervised learning',
             'zero-shot', 'few-shot', 'transfer learning', 'generalization',
-            'instruction tuning', 'foundation model', 'language model'
+            'instruction tuning', 'foundation model', 'language model',
+
+            # Academic quality signals (prioritize papers with strong results)
+            'state-of-the-art', 'sota', 'outperforms', 'surpasses', 'achieves',
+            'novel', 'we propose', 'we introduce', 'contributions',
+            'ablation', 'experiments', 'evaluation', 'empirical',
+
+            # Trending research areas
+            'scaling law', 'emergent', 'capability', 'safety', 'interpretability',
+            'mechanistic', 'world model', 'planning', 'agentic', 'self-improvement',
+            'constitutional ai', 'preference learning', 'reward model',
+            'mixture of experts', 'moe', 'retrieval augmented', 'rag',
+            'long context', 'context window', 'instruction following',
+            'code generation', 'mathematical reasoning', 'tool learning'
+        }
+
+        # Academic impact keywords (extra boost for papers with strong results)
+        self.impact_keywords = {
+            'state-of-the-art', 'sota', 'outperforms', 'surpasses',
+            'novel contribution', 'first to', 'breakthrough', 'significantly'
         }
 
     def score(self, item: Dict) -> float:
@@ -83,17 +102,25 @@ class RelevanceScorer:
 
         matches = sum(1 for keyword in self.high_value_keywords if keyword in text)
 
-        # Normalize to 0-1
-        return min(matches / 3.0, 1.0)
+        # Extra boost for academic impact keywords
+        impact_matches = sum(1 for keyword in self.impact_keywords if keyword in text)
+
+        # Base score from keyword matches (normalized to 0-1)
+        base_score = min(matches / 3.0, 1.0)
+
+        # Add impact bonus (up to 0.2 extra for papers with strong results language)
+        impact_bonus = min(impact_matches * 0.1, 0.2)
+
+        return min(base_score + impact_bonus, 1.0)
 
     def _source_score(self, item: Dict) -> float:
         """Score based on source tier."""
         metadata = item.get('source_metadata', {})
         source = item.get('source', '').lower()
 
-        # PRIORITY FIX: arXiv papers get maximum tier score
+        # PRIORITY FIX: Academic sources get maximum tier score
         # Academic papers are research foundation and should be prioritized
-        if 'arxiv' in source:
+        if 'arxiv' in source or 'semantic_scholar' in source or 'openreview' in source:
             return 1.0
 
         # Check for explicit tier metadata first (new tiered system)
@@ -124,8 +151,18 @@ class RelevanceScorer:
         metadata = item.get('source_metadata', {})
 
         # Different metrics based on source
-        if 'citations' in metadata:
-            # arXiv citations
+        if 'citation_count' in metadata:
+            # Semantic Scholar citation count (preferred - most reliable)
+            citations = metadata['citation_count']
+            # Boost for influential citations (highly weighted by S2)
+            influential = metadata.get('influential_citations', 0)
+            base_score = min(math.log(citations + 1) / math.log(100), 1.0)
+            # Add bonus for influential citations (up to 0.2 extra)
+            influential_bonus = min(influential * 0.05, 0.2)
+            return min(base_score + influential_bonus, 1.0)
+
+        elif 'citations' in metadata:
+            # arXiv citations (legacy)
             citations = metadata['citations']
             return min(math.log(citations + 1) / math.log(100), 1.0)
 

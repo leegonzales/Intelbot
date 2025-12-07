@@ -18,6 +18,7 @@ beautifulsoup4 = "^4.12.0"
 arxiv = "^2.1.0"
 lxml = "^5.1.0"
 python-dateutil = "^2.8.2"
+openreview-py = "^1.40.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"

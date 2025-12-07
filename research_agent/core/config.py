@@ -122,9 +122,9 @@ class Config:
                 },
             },
             'research': {
-                'target_items': 10,
+                'target_items': 12,
                 'min_items': 3,
-                'max_items': 15,
+                'max_items': 18,
                 'lookback_hours': 24,
                 'dedup': {
                     'exact_url': True,
@@ -151,8 +151,47 @@ class Config:
             'sources': {
                 'arxiv': {
                     'enabled': True,
-                    'categories': ['cs.AI', 'cs.LG', 'cs.CL', 'cs.HC'],
-                    'max_results': 20,
+                    'categories': [
+                        'cs.AI',   # Artificial Intelligence
+                        'cs.LG',   # Machine Learning
+                        'cs.CL',   # Computation and Language
+                        'cs.HC',   # Human-Computer Interaction
+                        'stat.ML', # Machine Learning (Statistics)
+                        'cs.CV',   # Computer Vision
+                        'cs.NE',   # Neural and Evolutionary Computing
+                        'cs.MA',   # Multiagent Systems
+                        'cs.IR',   # Information Retrieval
+                    ],
+                    'max_results': 50,
+                    'days_lookback': 14,
+                },
+                'semantic_scholar': {
+                    'enabled': True,
+                    'max_results': 30,
+                    'min_citations': 3,
+                    'days_lookback': 30,
+                    'queries': [
+                        'large language model',
+                        'transformer neural network',
+                        'reinforcement learning human feedback',
+                        'multimodal AI',
+                        'AI agents autonomous',
+                        'prompt engineering LLM',
+                        'neural network reasoning',
+                    ],
+                },
+                'openreview': {
+                    'enabled': True,
+                    'max_results': 50,
+                    'conferences': ['neurips', 'icml', 'iclr'],
+                    'years': [2025, 2024],
+                    'decision_filter': ['oral', 'spotlight', 'poster'],
+                    'keywords': [
+                        'agent', 'llm', 'large language model', 'transformer',
+                        'reinforcement learning', 'rlhf', 'alignment', 'reasoning',
+                        'multimodal', 'prompt', 'in-context learning', 'chain-of-thought',
+                        'tool use', 'planning', 'world model', 'safety',
+                    ],
                 },
                 'hackernews': {
                     'enabled': True,
@@ -164,10 +203,50 @@ class Config:
                 },
                 'rss': {
                     'enabled': True,
+                    'days_lookback': 14,
                     'feeds': [
                         {
                             'url': 'https://www.anthropic.com/news/rss',
                             'name': 'Anthropic News',
+                            'tier': 1,
+                            'priority': 'high',
+                        },
+                        {
+                            'url': 'https://nlp.elvissaravia.com/feed',
+                            'name': 'NLP Newsletter (Elvis Saravia)',
+                            'tier': 2,
+                            'priority': 'high',
+                            'author': 'Elvis Saravia',
+                            'perspective': 'AI researcher, DAIR.AI founder',
+                            'focus': 'Top AI papers of the week, AI agents, LLM trends',
+                        },
+                        {
+                            'url': 'https://www.interconnects.ai/feed',
+                            'name': 'Interconnects (Nathan Lambert)',
+                            'tier': 2,
+                            'priority': 'high',
+                            'author': 'Nathan Lambert',
+                            'perspective': 'AI researcher, ex-HuggingFace',
+                            'focus': 'RLHF, alignment, open source LLMs',
+                        },
+                        {
+                            'url': 'https://thegradient.pub/rss/',
+                            'name': 'The Gradient',
+                            'tier': 2,
+                            'priority': 'high',
+                            'focus': 'In-depth ML research analysis',
+                        },
+                        {
+                            'url': 'https://blog.research.google/feeds/posts/default',
+                            'name': 'Google AI Blog',
+                            'tier': 1,
+                            'priority': 'high',
+                        },
+                        {
+                            'url': 'https://openai.com/blog/rss.xml',
+                            'name': 'OpenAI Blog',
+                            'tier': 1,
+                            'priority': 'high',
                         },
                     ],
                 },

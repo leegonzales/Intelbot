@@ -41,9 +41,10 @@ class RSSSource(ResearchSource):
                 feed = feedparser.parse(feed_url)
 
                 for entry in feed.entries:
-                    # Only include items from last 7 days
+                    # Only include items from configured lookback window (default 14 days)
+                    days_lookback = self.config.get('days_lookback', 14)
                     published_date = self._parse_date(entry)
-                    if published_date and (datetime.now() - published_date).days > 7:
+                    if published_date and (datetime.now() - published_date).days > days_lookback:
                         continue
 
                     # Extract content from RSS feed

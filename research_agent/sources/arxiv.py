@@ -44,17 +44,19 @@ class ArxivSource(ResearchSource):
                 )
 
                 for result in search.results():
-                    # Only include papers from last 7 days
+                    # Only include papers from configured lookback window (default 14 days)
                     # Remove timezone info for comparison
+                    days_lookback = self.config.get('days_lookback', 14)
                     published_naive = result.published.replace(tzinfo=None)
-                    if (datetime.now() - published_naive).days > 7:
+                    if (datetime.now() - published_naive).days > days_lookback:
                         continue
 
                     item = self._create_item(
                         url=result.entry_id,
                         title=result.title,
                         source='arxiv',
-                        snippet=extract_snippet(result.summary, 500),
+                        # Use longer snippet (1500 chars) to capture full abstract for richer content
+                        snippet=extract_snippet(result.summary, 1500),
                         content=result.summary,
                         source_metadata={
                             'arxiv_id': result.entry_id.split('/')[-1],

@@ -120,7 +120,7 @@ class RelevanceScorer:
 
         # PRIORITY FIX: Academic sources get maximum tier score
         # Academic papers are research foundation and should be prioritized
-        if 'arxiv' in source or 'semantic_scholar' in source:
+        if 'arxiv' in source or 'semantic_scholar' in source or 'openreview' in source:
             return 1.0
 
         # Check for explicit tier metadata first (new tiered system)

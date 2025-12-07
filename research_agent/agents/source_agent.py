@@ -29,6 +29,7 @@ class SourceAgent:
         from research_agent.sources.rss import RSSSource
         from research_agent.sources.blog_scraper import BlogScraperSource
         from research_agent.sources.semantic_scholar import SemanticScholarSource
+        from research_agent.sources.openreview import OpenReviewSource
 
         sources_config = self.config.sources
 
@@ -39,6 +40,10 @@ class SourceAgent:
         # Semantic Scholar (high-impact papers with citation data)
         if hasattr(sources_config, 'semantic_scholar') and sources_config.semantic_scholar.get('enabled', False):
             self.sources.append(SemanticScholarSource(sources_config.semantic_scholar))
+
+        # OpenReview (NeurIPS, ICML, ICLR conference papers)
+        if hasattr(sources_config, 'openreview') and sources_config.openreview.get('enabled', False):
+            self.sources.append(OpenReviewSource(sources_config.openreview))
 
         # Hacker News
         if hasattr(sources_config, 'hackernews') and sources_config.hackernews.get('enabled', False):

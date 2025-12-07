@@ -180,6 +180,19 @@ class Config:
                         'neural network reasoning',
                     ],
                 },
+                'openreview': {
+                    'enabled': True,
+                    'max_results': 50,
+                    'conferences': ['neurips', 'icml', 'iclr'],
+                    'years': [2025, 2024],
+                    'decision_filter': ['oral', 'spotlight', 'poster'],
+                    'keywords': [
+                        'agent', 'llm', 'large language model', 'transformer',
+                        'reinforcement learning', 'rlhf', 'alignment', 'reasoning',
+                        'multimodal', 'prompt', 'in-context learning', 'chain-of-thought',
+                        'tool use', 'planning', 'world model', 'safety',
+                    ],
+                },
                 'hackernews': {
                     'enabled': True,
                     'endpoints': ['topstories', 'beststories'],

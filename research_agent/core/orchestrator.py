@@ -261,8 +261,8 @@ class ResearchOrchestrator:
                 source_counts[source] += 1
                 tier_counts[2] += 1
 
-        # 2. Get academic papers (arXiv + Semantic Scholar)
-        academic_sources = ['arxiv', 'semantic_scholar']
+        # 2. Get academic papers (arXiv + Semantic Scholar + OpenReview)
+        academic_sources = ['arxiv', 'semantic_scholar', 'openreview']
         arxiv_items = [
             item for item in ranked_items
             if any(src in item.get('source', '').lower() for src in academic_sources)
@@ -419,8 +419,8 @@ class ResearchOrchestrator:
             metrics['oldest_item_days'] = None
             metrics['avg_item_age_days'] = None
 
-        # 2. Check academic paper representation (arXiv + Semantic Scholar)
-        academic_sources = ['arxiv', 'semantic_scholar']
+        # 2. Check academic paper representation (arXiv + Semantic Scholar + OpenReview)
+        academic_sources = ['arxiv', 'semantic_scholar', 'openreview']
         arxiv_count = sum(
             1 for item in selected
             if any(src in item.get('source', '').lower() for src in academic_sources)

@@ -1,5 +1,6 @@
 """Semantic Scholar source collector for trending AI/ML papers."""
 
+import time
 import requests
 from typing import List, Dict
 from datetime import datetime, timedelta
@@ -52,6 +53,9 @@ class SemanticScholarSource(ResearchSource):
         # API key (optional but recommended for higher rate limits)
         self.api_key = config.get('api_key')
 
+        # Rate limiting (unauthenticated: ~100 req/5min = 1 req/3sec)
+        self.request_delay = config.get('request_delay', 3.0 if not self.api_key else 0.5)
+
     @retry(max_attempts=3, backoff_base=2.0, exceptions=(Exception,))
     def fetch(self) -> List[Dict]:
         """
@@ -67,7 +71,12 @@ class SemanticScholarSource(ResearchSource):
         if self.api_key:
             headers['x-api-key'] = self.api_key
 
-        for query in self.queries:
+        for i, query in enumerate(self.queries):
+            # Rate limiting between queries
+            if i > 0 and self.request_delay > 0:
+                self.logger.debug(f"Rate limiting: waiting {self.request_delay}s before next query")
+                time.sleep(self.request_delay)
+
             try:
                 papers = self._search_papers(query, headers)
 
@@ -102,7 +111,7 @@ class SemanticScholarSource(ResearchSource):
         return items[:self.max_results]
 
     def _search_papers(self, query: str, headers: dict) -> List[Dict]:
-        """Search for papers matching query."""
+        """Search for papers matching query with rate limit handling."""
         url = f"{self.BASE_URL}/paper/search"
 
         params = {
@@ -111,11 +120,23 @@ class SemanticScholarSource(ResearchSource):
             'fields': 'paperId,title,abstract,url,venue,year,authors,citationCount,influentialCitationCount,publicationDate,externalIds',
         }
 
-        response = requests.get(url, params=params, headers=headers, timeout=30)
-        response.raise_for_status()
+        # Retry with backoff on rate limit
+        max_retries = 3
+        for attempt in range(max_retries):
+            response = requests.get(url, params=params, headers=headers, timeout=30)
 
-        data = response.json()
-        return data.get('data', [])
+            if response.status_code == 429:
+                wait_time = (attempt + 1) * 10  # 10s, 20s, 30s
+                self.logger.warning(f"Rate limited by Semantic Scholar, waiting {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                time.sleep(wait_time)
+                continue
+
+            response.raise_for_status()
+            data = response.json()
+            return data.get('data', [])
+
+        self.logger.error(f"Failed to fetch '{query}' after {max_retries} rate limit retries")
+        return []
 
     def _parse_publication_date(self, paper: Dict) -> datetime:
         """Parse publication date from paper metadata."""

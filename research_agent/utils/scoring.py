@@ -247,7 +247,7 @@ class RelevanceScorer:
                 date_str = f"{month_day_year.group(1)} {month_day_year.group(2)}, {month_day_year.group(3)}"
                 parsed = date_parser.parse(date_str)
                 return parsed.strftime('%Y-%m-%d')
-            except:
+            except (ValueError, TypeError, OverflowError):
                 pass
 
         # Fallback: try dateutil's fuzzy parsing
@@ -256,7 +256,7 @@ class RelevanceScorer:
             # Only return if year is reasonable (2020-2030)
             if 2020 <= parsed.year <= 2030:
                 return parsed.strftime('%Y-%m-%d')
-        except:
+        except (ValueError, TypeError, OverflowError):
             pass
 
         return None

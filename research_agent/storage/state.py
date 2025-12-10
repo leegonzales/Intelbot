@@ -152,9 +152,11 @@ class StateManager:
             # Normalize BM25 scores and filter by threshold
             results = []
             for row in cursor:
-                # BM25 scores are negative (lower is better)
-                # Normalize to 0-1 range (higher is better)
-                normalized_score = 1 / (1 + abs(row['score']))
+                # BM25 scores are negative (more negative = better match)
+                # Typical range: -15 (excellent) to 0 (poor)
+                # Normalize to 0-1 range: -10 → 1.0, -8.5 → 0.85, -5 → 0.5
+                raw_score = abs(row['score'])
+                normalized_score = min(raw_score / 10.0, 1.0)
 
                 if normalized_score >= threshold:
                     results.append({
@@ -219,7 +221,11 @@ class StateManager:
 
     def filter_new(self, items: List[Dict]) -> List[Dict]:
         """
-        Filter list of items to only new ones.
+        Filter list of items to only new ones (batch optimized).
+
+        Uses batch queries for URL and content hash deduplication to avoid
+        O(n) database connections. FTS title similarity is skipped in batch
+        mode for performance (relies on URL and content hash dedup).
 
         Args:
             items: List of items to check
@@ -227,16 +233,53 @@ class StateManager:
         Returns:
             List of new items (not in database)
         """
+        if not items:
+            return []
+
         new_items = []
 
-        for item in items:
-            is_dup, reason = self.is_duplicate(
-                item['url'],
-                item['title'],
-                item.get('content')
+        with self._get_conn() as conn:
+            # Batch 1: Check all URLs at once
+            urls = [item['url'] for item in items]
+            placeholders = ','.join('?' * len(urls))
+            cursor = conn.execute(
+                f"SELECT url FROM seen_items WHERE url IN ({placeholders})",
+                urls
             )
+            existing_urls = {row['url'] for row in cursor}
 
-            if not is_dup:
+            # Batch 2: Check all content hashes at once
+            items_with_content = [
+                (self._hash_content(item.get('content', '')), item)
+                for item in items
+                if item.get('content')
+            ]
+
+            existing_hashes = set()
+            if items_with_content:
+                hashes = [h for h, _ in items_with_content]
+                placeholders = ','.join('?' * len(hashes))
+                cursor = conn.execute(
+                    f"SELECT content_hash FROM seen_items WHERE content_hash IN ({placeholders})",
+                    hashes
+                )
+                existing_hashes = {row['content_hash'] for row in cursor}
+
+            # Filter items based on batch results
+            for item in items:
+                # Check URL
+                if item['url'] in existing_urls:
+                    continue
+
+                # Check content hash
+                if item.get('content'):
+                    content_hash = self._hash_content(item['content'])
+                    if content_hash in existing_hashes:
+                        continue
+
+                # Note: FTS title similarity is skipped in batch mode for performance
+                # URL and content hash dedup catch most duplicates
+
                 new_items.append(item)
 
         return new_items
@@ -284,7 +327,7 @@ class StateManager:
                 if row['source_metadata']:
                     try:
                         metadata = json.loads(row['source_metadata'])
-                    except:
+                    except (json.JSONDecodeError, TypeError, ValueError):
                         pass
 
                 # Parse tags
@@ -292,7 +335,7 @@ class StateManager:
                 if row['tags']:
                     try:
                         tags = json.loads(row['tags'])
-                    except:
+                    except (json.JSONDecodeError, TypeError, ValueError):
                         tags = row['tags'].split(',') if row['tags'] else []
 
                 # TRUST FIX: Extract date from title if published_date is NULL
@@ -331,7 +374,7 @@ class StateManager:
                         age_days = (datetime.now() - pub_dt).days
                         if age_days > max_age_days:
                             continue  # Skip this item
-                    except:
+                    except (ValueError, TypeError, AttributeError):
                         pass  # If date parsing fails, include the item
 
                 items.append(item)
@@ -447,7 +490,7 @@ class StateManager:
                 date_str = f"{month_day_year.group(1)} {month_day_year.group(2)}, {month_day_year.group(3)}"
                 parsed = date_parser.parse(date_str)
                 return parsed.strftime('%Y-%m-%d')
-            except:
+            except (ValueError, TypeError, OverflowError):
                 pass
 
         # Fallback: try dateutil's fuzzy parsing
@@ -456,7 +499,7 @@ class StateManager:
             # Only return if year is reasonable (2020-2030)
             if 2020 <= parsed.year <= 2030:
                 return parsed.strftime('%Y-%m-%d')
-        except:
+        except (ValueError, TypeError, OverflowError):
             pass
 
         return None

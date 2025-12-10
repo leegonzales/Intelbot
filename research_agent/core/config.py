@@ -9,7 +9,7 @@ import os
 
 
 class DotDict(dict):
-    """Dict with dot notation access."""
+    """Dict with dot notation access and graceful missing key handling."""
 
     def __getattr__(self, key):
         try:
@@ -18,7 +18,13 @@ class DotDict(dict):
                 return DotDict(value)
             return value
         except KeyError:
-            raise AttributeError(f"No attribute '{key}'")
+            # Return empty DotDict for missing keys to allow safe chaining
+            # e.g., config.sources.arxiv.enabled won't crash if 'sources' is missing
+            return DotDict()
+
+    def __bool__(self):
+        """Empty DotDict is falsy, allowing `if config.sources:` checks."""
+        return len(self) > 0
 
     def __setattr__(self, key, value):
         self[key] = value

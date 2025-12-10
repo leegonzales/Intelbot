@@ -412,7 +412,7 @@ Begin synthesis now.
                 oldest_dt = datetime.fromisoformat(oldest.replace('Z', '+00:00'))
                 newest_dt = datetime.fromisoformat(newest.replace('Z', '+00:00'))
                 lines.append(f"- Content Date Range: {oldest_dt.strftime('%Y-%m-%d')} to {newest_dt.strftime('%Y-%m-%d')}")
-            except:
+            except (ValueError, TypeError, AttributeError):
                 lines.append(f"- Content Date Range: {oldest} to {newest}")
 
         lines.append("")

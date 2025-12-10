@@ -141,7 +141,7 @@ The structure should be:
 
 **You MUST display publication dates EXACTLY as provided in the item metadata.**
 
-- Today is {date_iso} (November 16, 2025)
+- Today is {date_iso} ({date_full})
 - Each item above includes a "Date" field - USE THAT EXACT DATE
 - If date shows "2025-11-13", display as "Nov 2025" (current year)
 - If date shows "2024-12-19", display as "Dec 2024" (last year)

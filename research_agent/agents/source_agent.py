@@ -30,6 +30,7 @@ class SourceAgent:
         from research_agent.sources.blog_scraper import BlogScraperSource
         from research_agent.sources.semantic_scholar import SemanticScholarSource
         from research_agent.sources.openreview import OpenReviewSource
+        from research_agent.sources.changelog import ChangelogSource
 
         sources_config = self.config.sources
 
@@ -56,6 +57,10 @@ class SourceAgent:
         # Blogs
         if hasattr(sources_config, 'blogs') and sources_config.blogs.get('enabled', False):
             self.sources.append(BlogScraperSource(sources_config.blogs))
+
+        # CLI Tool Changelogs (Claude Code, Codex, Gemini CLI)
+        if hasattr(sources_config, 'changelogs') and sources_config.changelogs.get('enabled', False):
+            self.sources.append(ChangelogSource(sources_config.changelogs))
 
     def collect_all(self) -> List[Dict]:
         """

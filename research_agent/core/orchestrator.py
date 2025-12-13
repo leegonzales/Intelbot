@@ -56,17 +56,19 @@ class ResearchOrchestrator:
         self.synthesis_agent = SynthesisAgent(config, self.prompts)
         self.digest_writer = DigestWriter(config)
 
-    def run(self, dry_run: bool = False) -> ResearchResult:
+    def run(self, dry_run: bool = False, target_date: Optional[datetime] = None) -> ResearchResult:
         """
         Execute a complete research cycle.
 
         Args:
             dry_run: If True, don't write outputs or update state
+            target_date: Optional date for the report (for backfilling)
 
         Returns:
             ResearchResult with metadata about the run
         """
         start_time = datetime.now()
+        self.target_date = target_date  # Store for use in digest writing
 
         try:
             self.logger.info("=" * 60)
@@ -152,14 +154,15 @@ class ResearchOrchestrator:
                 all_items=items,
                 new_items_count=len(new_items),
                 validation_report=validation,
-                db_stats=db_stats
+                db_stats=db_stats,
+                target_date=self.target_date
             )
 
             # 6. Write output
             output_path = None
             if not dry_run:
                 self.logger.info(f"[6/6] Writing digest...")
-                output_path = self.digest_writer.write(digest_content)
+                output_path = self.digest_writer.write(digest_content, date=self.target_date)
 
                 self.logger.info(f"Recording run in database...")
                 runtime = (datetime.now() - start_time).total_seconds()
@@ -242,19 +245,24 @@ class ResearchOrchestrator:
         tier_counts = defaultdict(int)
         arxiv_count = 0
 
-        # Diversity constraints (tuned for better academic paper coverage)
-        MIN_TIER_1 = 3  # At least 3 Tier 1 (primary sources)
-        MIN_TIER_2 = 3  # At least 3 Tier 2 (strategic thinkers) - reduced to make room for papers
+        # Diversity constraints (tuned for balanced strategic + academic coverage)
+        MIN_TIER_1 = 3  # At least 3 Tier 1 (primary sources - lab announcements)
+        MIN_TIER_2 = 5  # At least 5 Tier 2 (strategic thinkers) - INCREASED for better synthesis coverage
+        MIN_TIER_3 = 1  # At least 1 Tier 3 (news/community - HackerNews)
         MIN_TIER_5 = 1  # At least 1 Tier 5 (implementation)
-        MIN_ARXIV = 4   # At least 4 arXiv papers - INCREASED for better academic coverage
+        MIN_ARXIV = 4   # At least 4 arXiv papers for academic coverage
         MAX_PER_SOURCE = 3  # No more than 3 from any single source
 
         # First pass: Ensure minimums are met
         # Priority order: Tier 2 (strategic), arXiv, Tier 1, Tier 5
+        # T2 gets highest priority because QC showed it's consistently underweight
 
         # 1. Get top Tier 2 items (strategic thinkers - HIGHEST PRIORITY)
+        # Take more than minimum initially to ensure we hit the target after source filtering
         tier_2_items = [item for item in ranked_items if item.get('source_metadata', {}).get('tier') == 2]
-        for item in tier_2_items[:MIN_TIER_2]:
+        for item in tier_2_items[:MIN_TIER_2 + 2]:  # Try a few extra in case of source conflicts
+            if tier_counts[2] >= MIN_TIER_2:
+                break
             source = self._get_source_name(item)
             if source_counts[source] < MAX_PER_SOURCE:
                 selected.append(item)
@@ -262,12 +270,15 @@ class ResearchOrchestrator:
                 tier_counts[2] += 1
 
         # 2. Get academic papers (arXiv + Semantic Scholar + OpenReview)
+        # Try more items than minimum to account for source conflicts
         academic_sources = ['arxiv', 'semantic_scholar', 'openreview']
         arxiv_items = [
             item for item in ranked_items
             if any(src in item.get('source', '').lower() for src in academic_sources)
         ]
-        for item in arxiv_items[:MIN_ARXIV]:
+        for item in arxiv_items[:MIN_ARXIV + 3]:  # Try extra items in case of conflicts
+            if arxiv_count >= MIN_ARXIV:
+                break
             source = self._get_source_name(item)
             if source_counts[source] < MAX_PER_SOURCE and item not in selected:
                 selected.append(item)
@@ -300,6 +311,17 @@ class ResearchOrchestrator:
                 selected.append(item)
                 source_counts[source] += 1
                 tier_counts[5] += 1
+
+        # 5. Get Tier 3 items (news/community - e.g. HackerNews)
+        tier_3_items = [item for item in ranked_items if item.get('source_metadata', {}).get('tier') == 3]
+        for item in tier_3_items:
+            if tier_counts[3] >= MIN_TIER_3:
+                break
+            source = self._get_source_name(item)
+            if source_counts[source] < MAX_PER_SOURCE and item not in selected:
+                selected.append(item)
+                source_counts[source] += 1
+                tier_counts[3] += 1
 
         # Second pass: Fill remaining slots with highest-scored items
         for item in ranked_items:
@@ -454,8 +476,8 @@ class ResearchOrchestrator:
         metrics['tier3_count'] = tier_counts.get(3, 0)
         metrics['tier5_count'] = tier_counts.get(5, 0)
 
-        if tier_counts.get(2, 0) < 4:
-            warnings.append(f"Low Tier 2 (strategic): {tier_counts.get(2, 0)} items (target: 4-5)")
+        if tier_counts.get(2, 0) < 5:
+            warnings.append(f"Low Tier 2 (strategic): {tier_counts.get(2, 0)} items (target: 5)")
 
         # 6. Overall collection stats (if all_items provided)
         if all_items:

@@ -4,6 +4,9 @@ from typing import Dict, List
 from datetime import datetime, timedelta
 import math
 
+from research_agent.utils.priority_authors import get_author_boost, check_priority_author
+from research_agent.utils.slop_detector import score_paper_quality
+
 
 class RelevanceScorer:
     """
@@ -80,10 +83,10 @@ class RelevanceScorer:
         score = 0.0
 
         # 1. Base relevance from keywords
-        score += self._keyword_score(item) * 0.25
+        score += self._keyword_score(item) * 0.20
 
-        # 2. Source tier weight (DOUBLED to prioritize strategic sources)
-        score += self._source_score(item) * 0.40
+        # 2. Source tier weight (prioritize strategic sources)
+        score += self._source_score(item) * 0.35
 
         # 3. Engagement metrics
         score += self._engagement_score(item) * 0.15
@@ -94,7 +97,38 @@ class RelevanceScorer:
         # 5. Novelty bonus
         score += self._novelty_score(item) * 0.10
 
+        # 6. Quality score (penalize slop)
+        score += self._quality_score(item) * 0.10
+
+        # Apply author/institution boost (multiplicative)
+        author_boost = get_author_boost(item)
+        if author_boost > 1.0:
+            score *= author_boost
+
+        # Check for priority author in metadata (already computed by arxiv source)
+        metadata = item.get('source_metadata', {})
+        if metadata.get('priority_author'):
+            # Critical priority authors get maximum boost
+            score = max(score, 0.95)  # Ensure they're near the top
+
         return score
+
+    def _quality_score(self, item: Dict) -> float:
+        """
+        Score based on writing quality (inverse of slop score).
+
+        Papers with AI-generated slop get penalized.
+        """
+        metadata = item.get('source_metadata', {})
+
+        # Check if slop score was already computed (by arxiv source)
+        if 'slop_score' in metadata:
+            slop = metadata['slop_score']
+            return 1.0 - slop  # Invert: low slop = high quality
+
+        # Compute slop score for non-arxiv sources
+        quality = score_paper_quality(item)
+        return 1.0 - quality['slop_score']
 
     def _keyword_score(self, item: Dict) -> float:
         """Score based on keyword matching."""

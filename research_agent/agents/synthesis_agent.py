@@ -1,10 +1,11 @@
 """Synthesis agent using Claude."""
 
-from typing import List, Dict
+from typing import List, Dict, Optional
 from datetime import datetime
 import anthropic
 
 from research_agent.utils.logger import get_logger
+from research_agent.utils.substack_themes import get_theme_summary
 
 
 class SynthesisAgent:
@@ -20,7 +21,7 @@ class SynthesisAgent:
         # Initialize Anthropic client
         self.client = anthropic.Anthropic()
 
-    def synthesize(self, items: List[Dict], all_items: List[Dict] = None, new_items_count: int = None, validation_report: Dict = None, db_stats: Dict = None) -> str:
+    def synthesize(self, items: List[Dict], all_items: List[Dict] = None, new_items_count: int = None, validation_report: Dict = None, db_stats: Dict = None, target_date: Optional[datetime] = None) -> str:
         """
         Generate digest markdown from items.
 
@@ -30,6 +31,7 @@ class SynthesisAgent:
             new_items_count: Number of new items found today
             validation_report: Quality validation results
             db_stats: Database statistics
+            target_date: Optional date for the report (for backfilling)
 
         Returns:
             Formatted markdown digest
@@ -38,11 +40,14 @@ class SynthesisAgent:
         system_prompt = self.prompts.get_system_prompt()
         synthesis_template = self.prompts.get_synthesis_template()
 
-        # Get current date and timestamp for digest header
-        now = datetime.now()
+        # Get date for digest header (use target_date if provided, else now)
+        now = target_date if target_date else datetime.now()
         date_iso = now.strftime("%Y-%m-%d")
         date_full = now.strftime("%A, %B %d, %Y")
         timestamp_full = now.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+        # Detect backfill mode: target_date provided and not today
+        is_backfill = target_date is not None and target_date.date() != datetime.now().date()
 
         # Build context from items
         items_context = self._format_items_context(items)
@@ -50,15 +55,29 @@ class SynthesisAgent:
         source_stats, source_count = self._calculate_source_stats(all_items if all_items else items, len(items))
 
         # Determine if we're using supplemental content
+        # For backfills, skip the "low new items" messaging since we're reconstructing historical data
         items_selected = len(items)
         new_count = new_items_count if new_items_count is not None else items_selected
-        using_supplemental = new_count < items_selected
+        using_supplemental = new_count < items_selected and not is_backfill
 
         # Format validation report for digest
         validation_block = self._format_validation_block(validation_report) if validation_report else ""
 
         # Format DB stats for digest
         db_stats_block = self._format_db_stats_block(db_stats) if db_stats else ""
+
+        # Generate Substack topic opportunities
+        substack_section = get_theme_summary(items)
+        if substack_section:
+            self.logger.info(f"Found Substack topic opportunities in {len(items)} items")
+
+        # Build backfill notice if applicable
+        backfill_notice = ""
+        if is_backfill:
+            backfill_notice = f"""
+**NOTE**: This is a BACKFILLED digest for {date_full}. The content was reconstructed from historical data.
+Do NOT include any "limited new content" or "0 new items" messaging - this is a historical reconstruction.
+"""
 
         # Construct synthesis prompt
         synthesis_prompt = f"""
@@ -70,7 +89,7 @@ class SynthesisAgent:
 
 Today is {date_full} ({date_iso})
 Full timestamp: {timestamp_full}
-
+{backfill_notice}
 Use this date in the digest header. Do NOT use any other date.
 Include the full timestamp in the frontmatter and footer.
 
@@ -81,7 +100,7 @@ Include the full timestamp in the frontmatter and footer.
 Total unique sources: {source_count}
 Total items analyzed: {len(all_items) if all_items else len(items)}
 Items selected for digest: {len(items)}
-New items found: {new_count}
+{"New items found: " + str(new_count) if not is_backfill else ""}
 {"Supplemental items from last 7 days: " + str(items_selected - new_count) if using_supplemental else ""}
 
 Use these numbers in the frontmatter and footer.
@@ -136,6 +155,11 @@ The structure should be:
 8. Note any signals/trends
 9. Follow template structure exactly
 10. **IMPORTANT**: Use the Source Statistics above to populate the "📡 Sources Polled" footer section
+11. **IF SUBSTACK OPPORTUNITIES EXIST**: Include the Substack Opportunities section before the Sources Polled section
+
+## Substack Opportunities (INCLUDE IF NOT EMPTY)
+
+{substack_section if substack_section else "No Substack opportunities identified for this digest."}
 
 ## DATE ACCURACY REQUIREMENTS (CRITICAL)
 

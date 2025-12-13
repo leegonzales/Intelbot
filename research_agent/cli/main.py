@@ -21,7 +21,8 @@ def cli():
 @click.option('--dry-run', is_flag=True, help='Run without writing outputs')
 @click.option('--verbose', is_flag=True, help='Verbose logging')
 @click.option('--config', type=click.Path(), help='Custom config file')
-def run(dry_run, verbose, config):
+@click.option('--date', type=str, help='Generate report for specific date (YYYY-MM-DD)')
+def run(dry_run, verbose, config, date):
     """Execute research cycle."""
     try:
         # Load config
@@ -46,6 +47,17 @@ def run(dry_run, verbose, config):
             config_obj.dev['dry_run'] = True
             click.echo("Running in DRY RUN mode (no outputs will be written)")
 
+        # Parse date if provided
+        target_date = None
+        if date:
+            from datetime import datetime as dt
+            try:
+                target_date = dt.strptime(date, '%Y-%m-%d')
+                click.echo(f"Generating report for: {date}")
+            except ValueError:
+                click.secho(f"Invalid date format: {date}. Use YYYY-MM-DD", fg='red', err=True)
+                sys.exit(1)
+
         # Initialize logging
         log_dir = Path(config_obj.paths.logs_dir).expanduser()
         setup_logger(
@@ -56,7 +68,7 @@ def run(dry_run, verbose, config):
 
         # Run orchestrator
         orchestrator = ResearchOrchestrator(config_obj)
-        result = orchestrator.run(dry_run=dry_run)
+        result = orchestrator.run(dry_run=dry_run, target_date=target_date)
 
         # Print result
         click.echo()

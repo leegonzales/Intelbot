@@ -82,6 +82,12 @@ output/
 /CLAUDE.md
 /docs/project-state/
 
+# Claude Code local config (may contain API keys)
+.claude/
+
+# Beads issue tracker (local database)
+.beads/
+
 # macOS
 .DS_Store
 .AppleDouble

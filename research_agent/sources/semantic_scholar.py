@@ -87,12 +87,13 @@ class SemanticScholarSource(ResearchSource):
 
                     seen_paper_ids.add(paper_id)
 
-                    # Filter by publication date
+                    # Filter by publication date (skip papers with no date)
                     pub_date = self._parse_publication_date(paper)
-                    if pub_date:
-                        age_days = (datetime.now() - pub_date).days
-                        if age_days > self.days_lookback:
-                            continue
+                    if not pub_date:
+                        continue
+                    age_days = (datetime.now() - pub_date).days
+                    if age_days > self.days_lookback:
+                        continue
 
                     # Filter by citation count (quality signal)
                     citation_count = paper.get('citationCount', 0)
@@ -114,10 +115,14 @@ class SemanticScholarSource(ResearchSource):
         """Search for papers matching query with rate limit handling."""
         url = f"{self.BASE_URL}/paper/search"
 
+        # Server-side date filter to avoid fetching stale papers
+        cutoff = (datetime.now() - timedelta(days=self.days_lookback)).strftime('%Y-%m-%d')
+
         params = {
             'query': query,
             'limit': 20,
             'fields': 'paperId,title,abstract,url,venue,year,authors,citationCount,influentialCitationCount,publicationDate,externalIds',
+            'publicationDateOrYear': f'{cutoff}:',
         }
 
         # Retry with backoff on rate limit

@@ -56,13 +56,19 @@ class ResearchOrchestrator:
         self.synthesis_agent = SynthesisAgent(config, self.prompts)
         self.digest_writer = DigestWriter(config)
 
-    def run(self, dry_run: bool = False, target_date: Optional[datetime] = None) -> ResearchResult:
+    def run(
+        self,
+        dry_run: bool = False,
+        target_date: Optional[datetime] = None,
+        include_recent_days: Optional[int] = None,
+    ) -> ResearchResult:
         """
         Execute a complete research cycle.
 
         Args:
             dry_run: If True, don't write outputs or update state
             target_date: Optional date for the report (for backfilling)
+            include_recent_days: If set, skip dedup and include items from last N days
 
         Returns:
             ResearchResult with metadata about the run
@@ -93,41 +99,68 @@ class ResearchOrchestrator:
                 )
 
             # 2. Deduplicate against state
-            self.logger.info(f"[2/6] Deduplicating {len(items)} items...")
-            new_items = self.state.filter_new(items)
-            self.logger.info(f"Found {len(new_items)} new items")
-
-            # Always generate digest for monitoring purposes
-            # If few new items or low tier diversity, supplement with recent items
-            min_items_target = self.config.research.get('min_items', 5)
-            items_to_rank = new_items
-
-            # Check tier diversity: if all new items are from one tier,
-            # the diversity selector can't build a balanced digest
-            new_item_tiers = set(
-                item.get('source_metadata', {}).get('tier', 0)
-                for item in new_items
-            )
-            needs_supplement = (
-                len(new_items) < min_items_target
-                or len(new_item_tiers) < 3
-            )
-
-            if needs_supplement:
-                self.logger.warning(
-                    f"Supplementing: {len(new_items)} new items, "
-                    f"{len(new_item_tiers)} tier(s) represented"
+            if include_recent_days:
+                self.logger.info(
+                    f"[2/6] Including items from last {include_recent_days} days (skipping dedup)..."
                 )
-                self.logger.info("Adding recent items from last 7 days for diversity...")
+                # Dedup within collected items only (by URL)
+                seen_urls = set()
+                new_items = []
+                for item in items:
+                    if item['url'] not in seen_urls:
+                        seen_urls.add(item['url'])
+                        new_items.append(item)
 
-                # Get recent items from database to supplement
-                # Use larger limit (100) to ensure diversity across sources, especially arXiv papers
-                recent_items = self.state.get_recent_items(days=7, limit=100)
-                self.logger.info(f"Found {len(recent_items)} recent items from database")
+                # Also pull recent items from database
+                recent_items = self.state.get_recent_items(
+                    days=include_recent_days, limit=500
+                )
+                for item in recent_items:
+                    if item['url'] not in seen_urls:
+                        seen_urls.add(item['url'])
+                        new_items.append(item)
 
-                # Combine new items with recent items (new items first)
-                items_to_rank = new_items + recent_items
-                self.logger.info(f"Total items to rank: {len(items_to_rank)} ({len(new_items)} new + {len(recent_items)} recent)")
+                self.logger.info(
+                    f"Combined {len(new_items)} unique items "
+                    f"({len(items)} collected + {len(recent_items)} from DB)"
+                )
+                items_to_rank = new_items
+            else:
+                self.logger.info(f"[2/6] Deduplicating {len(items)} items...")
+                new_items = self.state.filter_new(items)
+                self.logger.info(f"Found {len(new_items)} new items")
+
+                # Always generate digest for monitoring purposes
+                # If few new items or low tier diversity, supplement with recent items
+                min_items_target = self.config.research.get('min_items', 5)
+                items_to_rank = new_items
+
+                # Check tier diversity: if all new items are from one tier,
+                # the diversity selector can't build a balanced digest
+                new_item_tiers = set(
+                    item.get('source_metadata', {}).get('tier', 0)
+                    for item in new_items
+                )
+                needs_supplement = (
+                    len(new_items) < min_items_target
+                    or len(new_item_tiers) < 3
+                )
+
+                if needs_supplement:
+                    self.logger.warning(
+                        f"Supplementing: {len(new_items)} new items, "
+                        f"{len(new_item_tiers)} tier(s) represented"
+                    )
+                    self.logger.info("Adding recent items from last 7 days for diversity...")
+
+                    # Get recent items from database to supplement
+                    # Use larger limit (100) to ensure diversity across sources, especially arXiv papers
+                    recent_items = self.state.get_recent_items(days=7, limit=100)
+                    self.logger.info(f"Found {len(recent_items)} recent items from database")
+
+                    # Combine new items with recent items (new items first)
+                    items_to_rank = new_items + recent_items
+                    self.logger.info(f"Total items to rank: {len(items_to_rank)} ({len(new_items)} new + {len(recent_items)} recent)")
 
             # 3. Score and rank
             self.logger.info(f"[3/6] Scoring and ranking items...")

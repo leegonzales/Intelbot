@@ -22,7 +22,8 @@ def cli():
 @click.option('--verbose', is_flag=True, help='Verbose logging')
 @click.option('--config', type=click.Path(), help='Custom config file')
 @click.option('--date', type=str, help='Generate report for specific date (YYYY-MM-DD)')
-def run(dry_run, verbose, config, date):
+@click.option('--include-recent', type=int, default=0, help='Include already-seen items from last N days')
+def run(dry_run, verbose, config, date, include_recent):
     """Execute research cycle."""
     try:
         # Load config
@@ -68,7 +69,11 @@ def run(dry_run, verbose, config, date):
 
         # Run orchestrator
         orchestrator = ResearchOrchestrator(config_obj)
-        result = orchestrator.run(dry_run=dry_run, target_date=target_date)
+        result = orchestrator.run(
+            dry_run=dry_run,
+            target_date=target_date,
+            include_recent_days=include_recent if include_recent > 0 else None,
+        )
 
         # Print result
         click.echo()

@@ -31,6 +31,7 @@ class SourceAgent:
         from research_agent.sources.semantic_scholar import SemanticScholarSource
         from research_agent.sources.openreview import OpenReviewSource
         from research_agent.sources.changelog import ChangelogSource
+        from research_agent.sources.web_search import WebSearchSource
 
         sources_config = self.config.sources
 
@@ -61,6 +62,10 @@ class SourceAgent:
         # CLI Tool Changelogs (Claude Code, Codex, Gemini CLI)
         if hasattr(sources_config, 'changelogs') and sources_config.changelogs.get('enabled', False):
             self.sources.append(ChangelogSource(sources_config.changelogs))
+
+        # Web Search (Brave Search News API — AI agent marketplaces, crypto)
+        if hasattr(sources_config, 'web_search') and sources_config.web_search.get('enabled', False):
+            self.sources.append(WebSearchSource(sources_config.web_search))
 
     def collect_all(self) -> List[Dict]:
         """

@@ -98,13 +98,27 @@ class ResearchOrchestrator:
             self.logger.info(f"Found {len(new_items)} new items")
 
             # Always generate digest for monitoring purposes
-            # If few new items, supplement with recent items from database
+            # If few new items or low tier diversity, supplement with recent items
             min_items_target = self.config.research.get('min_items', 5)
             items_to_rank = new_items
 
-            if len(new_items) < min_items_target:
-                self.logger.warning(f"Only {len(new_items)} new items (target: {min_items_target})")
-                self.logger.info("Supplementing with recent items from last 7 days...")
+            # Check tier diversity: if all new items are from one tier,
+            # the diversity selector can't build a balanced digest
+            new_item_tiers = set(
+                item.get('source_metadata', {}).get('tier', 0)
+                for item in new_items
+            )
+            needs_supplement = (
+                len(new_items) < min_items_target
+                or len(new_item_tiers) < 3
+            )
+
+            if needs_supplement:
+                self.logger.warning(
+                    f"Supplementing: {len(new_items)} new items, "
+                    f"{len(new_item_tiers)} tier(s) represented"
+                )
+                self.logger.info("Adding recent items from last 7 days for diversity...")
 
                 # Get recent items from database to supplement
                 # Use larger limit (100) to ensure diversity across sources, especially arXiv papers
@@ -361,7 +375,7 @@ class ResearchOrchestrator:
     def _get_source_name(self, item: Dict) -> str:
         """Extract source name from item for diversity tracking."""
         metadata = item.get('source_metadata', {})
-        source_name = metadata.get('feed_name') or metadata.get('blog_name') or item.get('source', 'Unknown')
+        source_name = metadata.get('feed_name') or metadata.get('blog_name') or metadata.get('source_name') or item.get('source', 'Unknown')
         # Clean up source name
         source_name = source_name.replace('rss:', '').replace('blog:', '').strip()
         return source_name

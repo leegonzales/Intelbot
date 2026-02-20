@@ -292,6 +292,23 @@ class Config:
                         },
                     ],
                 },
+                'web_search': {
+                    'enabled': True,
+                    'tier': 3,
+                    'priority': 'medium',
+                    'freshness': 'pw',
+                    'max_queries_per_run': 5,
+                    'results_per_query': 10,
+                    'use_news_api': True,
+                    'request_delay': 1.0,
+                    'queries': [
+                        'AI agent marketplace platform',
+                        'AI agents crypto blockchain marketplace',
+                        'autonomous AI agents token economy',
+                        'decentralized AI agent marketplace',
+                        'AI agent crypto trading autonomous',
+                    ],
+                },
             },
             'learning': {
                 'enabled': False,

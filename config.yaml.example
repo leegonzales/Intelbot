@@ -143,6 +143,27 @@ sources:
     enabled: false
     urls: []
 
+  # Web Search (Brave Search News API)
+  # Targets AI agent marketplaces and crypto topics
+  # Requires BRAVE_SEARCH_API_KEY in .env
+  web_search:
+    enabled: true
+    tier: 3
+    priority: "medium"
+    # Freshness: pd=past day, pw=past week, pm=past month
+    freshness: "pw"
+    max_queries_per_run: 5
+    results_per_query: 10
+    use_news_api: true
+    # Delay between queries (seconds) to respect rate limits
+    request_delay: 1.0
+    queries:
+      - "AI agent marketplace platform"
+      - "AI agents crypto blockchain marketplace"
+      - "autonomous AI agents token economy"
+      - "decentralized AI agent marketplace"
+      - "AI agent crypto trading autonomous"
+
 # ============================================
 # PREFERENCE LEARNING (Phase 2)
 # ============================================

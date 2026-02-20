@@ -33,6 +33,7 @@ class RelevanceScorer:
             'hackernews': 0.8,
             'rss': 0.7,
             'blog': 0.7,
+            'web_search': 0.7,
         }
 
         # High-value keywords (expanded for academic papers)
@@ -61,7 +62,12 @@ class RelevanceScorer:
             'constitutional ai', 'preference learning', 'reward model',
             'mixture of experts', 'moe', 'retrieval augmented', 'rag',
             'long context', 'context window', 'instruction following',
-            'code generation', 'mathematical reasoning', 'tool learning'
+            'code generation', 'mathematical reasoning', 'tool learning',
+
+            # AI agent marketplace & crypto terms
+            'marketplace', 'crypto', 'blockchain', 'token', 'tokenomics',
+            'decentralized', 'web3', 'defi', 'smart contract', 'dao',
+            'agent marketplace', 'agent economy', 'on-chain',
         }
 
         # Academic impact keywords (extra boost for papers with strong results)
